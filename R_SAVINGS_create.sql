@@ -1,0 +1,6 @@
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `r_savings`
+AS SELECT
+   if((length(month(`budget`.`DATE_TIME`)) = 1),convert(concat(year(`budget`.`DATE_TIME`),'0',month(`budget`.`DATE_TIME`)) using utf8),convert(concat(year(`budget`.`DATE_TIME`),month(`budget`.`DATE_TIME`)) using utf8)) AS `PERIOD`,
+   `budget`.`TRID_CODE` AS `TRID_CODE`,
+   `budget`.`CREDIT` AS `CREDIT`
+FROM (`budget` left join `transaction` on(((if((length(month(`budget`.`DATE_TIME`)) = 1),convert(concat(year(`budget`.`DATE_TIME`),'0',month(`budget`.`DATE_TIME`)) using utf8),convert(concat(year(`budget`.`DATE_TIME`),month(`budget`.`DATE_TIME`)) using utf8)) = if((length(month(`transaction`.`timestamp_key`)) = 1),convert(concat(year(`transaction`.`timestamp_key`),'0',month(`transaction`.`timestamp_key`)) using utf8),convert(concat(year(`transaction`.`timestamp_key`),month(`transaction`.`timestamp_key`)) using utf8))) and (`budget`.`TRID_CODE` = `transaction`.`transaction_number`)))) where (`budget`.`TRID_CODE` = '801');
