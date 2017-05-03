@@ -1,0 +1,371 @@
+---
+title: "Budget Summary"
+author: "Taylor Turner"
+date: "May 2, 2017"
+output: 
+  html_document:
+    keep_md: True
+    toc: yes
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+options(warn = -1)
+require(ggplot2)
+require(lubridate)
+require(dplyr, warn.conflicts = FALSE)
+library(data.table)
+require(plotly)
+library(ggExtra)
+library(chron)
+require(RMySQL)
+knitr::opts_chunk$set(echo = TRUE)
+
+#kill all mysql database connections
+killallDBConns <- function(){
+  all_cons <- dbListConnections(MySQL())
+  
+  for(con in all_cons){
+    dbDisconnect(con)
+  }
+  
+  print("All connecitons killed!")
+}
+
+
+#mysql connection
+con <- dbConnect(RMySQL::MySQL(), host = "localhost",user = "root", password = "password", dbname = "fitz_cap")
+
+#list tables in fitz_cap for this markdown report
+tbls <- setnames(data.frame(dbListTables(con)),c("tbl"))
+tbls <- factor(tbls[substr(tbls$tbl,0,2) == "R_",])
+
+#for loop to query the tables in tbls varaible
+for (tbl in tbls){
+  if(tbl == "R_MARGIN_VIEW"){
+    sql <- paste0("SELECT PERIOD, INCOME, EXPENSES, MARGIN, OP_MARGIN FROM ", tbl)
+    print (sql)
+    sumar <- dbGetQuery(con, sql)
+    sumar$flg <- as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', '$1500<X'))))
+    sql <- NULL
+  }
+  
+  if(tbl == "R_CAT_MARGIN"){
+    sql <- paste0("SELECT PERIOD, TRID, DEBIT, CREDIT, MARGIN FROM ", tbl)
+    catmarg <- dbGetQuery(con, sql)
+    sql <- NULL
+  }
+  
+  if(tbl == "R_MARGIN_DECAY"){
+    sql <- paste0("SELECT YEAR, PERIOD, PERIODKEY, DAY, DEBIT, INCOME FROM ", tbl)
+    decay <- dbGetQuery(con, sql)
+    decay <- decay %>% group_by(PERIOD) %>% arrange(PERIODKEY) %>% mutate(runbal = cumsum(DEBIT) * -1)
+    decay$period <- as.factor(decay$PERIOD)
+    decay$year <- as.factor(decay$YEAR)
+    decay$mnthtot <- decay$INCOME + decay$runbal
+    decay$PERIOD <- as.factor(decay$PERIOD)
+    decay <- decay[order(decay$PERIOD),]
+    decay <- transform(decay, prd_flg=c(0,as.numeric(diff(as.numeric(decay$PERIOD)))))
+    decay$prd_flg <- as.numeric(decay$prd_flg)
+    decay <- transform(decay, DIFF=c(NA, ifelse(diff(decay$prd_flg) == 0, diff(decay$mnthtot, lag = 1), 0)))
+    decay <- transform(decay, DIFF2 = c(NA, ifelse(diff(decay$prd_flg) == 0, diff(decay$DIFF, lag = 1), 0)))
+    decay$marg_flg <- as.factor(ifelse(decay$mnthtot < 0, "X<0", ifelse((decay$mnthtot < 1000) & (decay$mnthtot > 0),"0<X<1000","1000<X")))
+    decay$month <- substring(decay$PERIOD,5,7)
+    decay$row_num <- as.numeric(rownames(decay))
+    decay$opmarg <- as.numeric((decay$mnthtot / decay$INCOME) * 100)
+    decay <- decay %>% group_by(DAY) %>% mutate(avg_diff = mean(DIFF), med_diff = median(DIFF))
+    decay <- decay %>% group_by(PERIOD) %>% mutate(avg_prd_diff = mean(DIFF), avg_prd_op = mean(opmarg), min_prd_op = min(opmarg), median_prd_diff = median(DIFF), min_prd_diff = min(DIFF))
+    decay <- transform(decay, dif_avg_dif = c(NA, ifelse(diff(decay$prd_flg) == 1, diff(decay$avg_prd_diff, lag = 1), 0)))
+    decay$med_avg_prd_diff <- (decay$avg_prd_diff + decay$median_prd_diff)/2
+    decay$date <- paste0(as.character(decay$YEAR), '-', as.character(substr(decay$PERIOD,5,6)), '-',  as.character(decay$DAY))
+    decay$weekday <- weekdays(as.Date(decay$date))
+    decay$day_flg <- chron::is.weekend(decay$date)
+    sql <- NULL
+   }
+  
+  if(tbl == "R_CUR_MONTH_VAR"){
+    sql <- paste0("SELECT TRID, DEBIT, CREDIT, VAR, FLAG FROM ", tbl)
+    cur_prd_var <- dbGetQuery(con, sql)
+    sql <- NULL
+  }
+  
+  if(tbl == "R_SUMMARY_VIEW"){
+    sql <- paste0("SELECT * FROM ", tbl)
+    summary_view <- dbGetQuery(con, sql)
+    cat_bal_tmp <- data.frame(summary_view$PERIOD, summary_view$TRID, summary_view$VAR)
+    setnames(cat_bal_tmp, c("PERIOD", "TRID", "VAR"))
+    cat_bal <- cat_bal_tmp %>% group_by(TRID) %>% mutate(bal_sum = sum(VAR))
+    rm(cat_bal_tmp, summary_view)
+    cat_bal <- unique(cat_bal)
+    sql <- NULL
+  }
+  
+  if(tbl == "R_HIST"){
+    sql <- paste0("SELECT MONTH, PERIOD, dynm, description, TRID, memo, debit, credit, transaction_number FROM ", tbl)
+    hist <- dbGetQuery(con, sql)
+    hist$debitnum <- as.numeric(as.character(hist$debit))
+    hist$dynm <- as.numeric(hist$dynm)
+    hist$MONTH <- as.numeric(hist$MONTH)
+    cdfhist <- subset(hist, debitnum > -100)
+    sql <- NULL
+  }
+  
+  if(tbl == "R_TRANS"){
+    sql <- paste0("SELECT PERIOD, COUNT, SUM FROM ", tbl)
+    trans <- dbGetQuery(con, sql)
+    trans$period <- as.factor(trans$PERIOD)
+    sql <- NULL
+  }
+  
+  if(tbl == "R_SAVINGS"){
+    sql <- paste0("SELECT PERIOD, TRID_CODE, CREDIT FROM ", tbl)
+    savingproforma <- dbGetQuery(con, sql)
+    savingproforma <- savingproforma %>% group_by(TRID_CODE) %>% mutate(runbal = cumsum(CREDIT))
+    savingproforma$ROW_NUM <- as.numeric(rownames(savingproforma))
+    sql <- NULL
+  }
+
+}
+
+
+catmarg <- read.csv(file = "r_cat_margin.csv", strip.white = TRUE, header = TRUE)
+negcatmarg <- subset(catmarg, MARGIN < 0)
+neg <- data.frame(negcatmarg$TRID, negcatmarg$MARGIN)
+nms <- c("TRID", "MARGIN")
+setnames(neg, nms)
+neg$num <- 1
+neg <- neg %>% group_by(TRID) %>% mutate(count = sum(num))
+neg$MARGIN <- NULL
+neg$num <- NULL
+neg <- unique(neg)
+
+# MARGIN SUM BY NEG CATEGORY
+negmarg <- data.frame(negcatmarg$TRID, negcatmarg$MARGIN)
+nms <- c("TRID", "MARGIN")
+setnames(negmarg, nms)
+negmarg$num <- 1
+negmarg <- negmarg %>% group_by(TRID) %>% mutate(sum = sum(MARGIN))
+negmarg$MARGIN <- NULL
+negmarg$num <- NULL
+negmarg <- unique(negmarg)
+
+
+poscatmarg <- subset(catmarg, MARGIN >= 0)
+pos <- data.frame(poscatmarg$TRID, poscatmarg$MARGIN)
+nms <- c("TRID", "MARGIN")
+setnames(pos, nms)
+pos$num <- 1
+pos <- pos %>% group_by(TRID) %>% mutate(count = sum(num))
+pos$MARGIN <- NULL
+pos$num <- NULL
+pos <- unique(pos)
+
+
+#MARGIN SUM BY POS CATEGORY
+posmarg <- data.frame(poscatmarg$TRID, poscatmarg$MARGIN)
+nms <- c("TRID", "MARGIN")
+setnames(posmarg, nms)
+posmarg$num <- 1
+posmarg <- posmarg %>% group_by(TRID) %>% mutate(sum = sum(MARGIN))
+posmarg$MARGIN <- NULL
+posmarg$num <- NULL
+posmarg <- unique(posmarg)
+
+net <- merge(pos, neg, by = "TRID")
+nms <- c("TRID", "POS", "NEG")
+setnames(net, nms)
+net$NET <- net$POS - net$NEG
+net$POSPCNT <- net$POS / (net$POS + net$NEG)
+net$NEGPCNT <- net$NEG / (net$POS + net$NEG)
+
+dolnet <- merge(posmarg, negmarg, by = "TRID")
+nms <- c("TRID", "POS", "NEG")
+setnames(dolnet, nms)
+dolnet$NET <- dolnet$POS + dolnet$NEG
+
+catmarg$ROW_NUM <- NULL
+catmarg$PERIOD <- NULL
+catmarg$DEBIT <- NULL
+catmarg$CREDIT <- NULL
+stdevcatmarg <-catmarg %>% group_by(TRID) %>% mutate(stdev = sd(MARGIN))
+stdevcatmarg$MARGIN <- NULL
+stdevcatmarg <- unique(stdevcatmarg)
+stdevcatmarg <- data.frame(stdevcatmarg)
+
+
+#delete mysql connection
+dbDisconnect(con)
+attach(decay)
+attach(savingproforma)
+attach(sumar)
+```
+
+# Margin Analysis
+```{r margin_analysis}
+plot <- ggplot(sumar) + geom_bar(aes(x = as.factor(PERIOD), y = OP_MARGIN, fill = flg), stat = "identity") + scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) + ylab("Operating Margin") + xlab("Period") + ggtitle("Time Series of Operating Margin") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+plot
+sumar[1:6]
+```
+
+```{r cur_prd_var}
+cur_prd_var
+```
+
+
+```{r margin_analysis_print}
+mean(sumar$OP_MARGIN) #mean
+median(sumar$OP_MARGIN) #median
+```
+
+```{r cat_margin_analysis_boxplot}
+ggplot() + geom_boxplot(data = negcatmarg, aes(x = TRID, y = MARGIN, colour = TRID)) + geom_boxplot(data = poscatmarg, aes(x = TRID, y = MARGIN, colour = TRID)) + xlab("Transaction ID") + ylab("Dollar Margin") + ggtitle("BoxPlot of Margin By Transaction ID")
+```
+
+```{r cat_margin_NET}
+ggplot(net) + geom_bar(aes(x = TRID, y = NET, fill = TRID), stat = "identity") + xlab("Transaction ID") + ylab("Count of Net Dollar Margin") + ggtitle("Count of Net Dollar Margin")
+net
+rm(net)
+```
+
+```{r stdev_margin}
+ggplot() + geom_bar(data = stdevcatmarg, aes(x = TRID, y = stdev, fill = TRID), stat = "identity") + xlab("Transaction ID") + ylab("Sigma of Dollar Margin") + ggtitle("Standard Deviation of Net Dollar Margin")
+rm(sumar)
+```
+
+#Savings Analysis
+```{r saving rate}
+tmp <- read.csv("budget_subsum_view.csv", header = TRUE)
+tmp_one <- subset(tmp, TRID == 'SVTRID')
+tmp <- tmp %>% group_by(PERIOD) %>% summarise(INCOME = sum(CREDIT))
+tmp <- merge(tmp_one, tmp)
+rm(tmp_one)
+tmp_two <- subset(hist, hist$TRID == 'SVTRID')
+tmp_two <- tmp_two %>% group_by(PERIOD, TRID) %>% summarise(savingextract = sum(as.numeric(as.character(debit)) * -1))
+tmp <- merge(tmp, tmp_two, by = "PERIOD", all.x = TRUE)
+tmp$savingextract <- replace(tmp$savingextract, is.na(tmp$savingextract), 0)
+tmp$TRID.y <- NULL
+rm(tmp_two)
+tmp$CREDIT <- tmp$CREDIT - tmp$savingextract
+tmp$savingextract <- NULL
+tmp$rownum <- as.numeric(rownames(tmp))
+tmp$savingrate <- tmp$CREDIT / tmp$INCOME
+ggplot(tmp) + geom_bar(aes(x = rownum, y = savingrate, color = PERIOD), stat = "identity") + xlab("F(t)") + ylab("Savings Rate") + ggtitle("Actual Savings Rate by Period") + scale_y_continuous(breaks = seq(-.50,.50, by = .05))
+tmp
+rm(tmp)
+```
+
+```{r saving_projection}
+ggplotly(ggplot(savingproforma, aes(x = ROW_NUM, y = runbal)) + geom_bar(stat = "identity") + ylab("Cumulative Savings"))
+```
+
+# Margin Decay
+```{r margin_decay_period}
+ggplot(decay, aes(x = DAY, y = mnthtot, colour = marg_flg)) + xlab("Day") + ylab("Margin Decay") + geom_area() + ggtitle("Margin Decay Warp by Period") + facet_wrap(~PERIOD)
+```
+
+```{r margin_order}
+#order operating margin
+order <- setnames(data.frame(decay$PERIOD, decay$min_prd_op), c("period", "opmarg"))
+order <- transform(order, period = reorder(period, opmarg))
+order <- distinct(order)
+order$cur_prd <- ifelse(length(month(now())) == 1, paste0(year(now()),"0", month(now())), paste0(year(now()),month(now())))
+order$flg <- as.factor(ifelse(order$cur_prd == order$period, "CUR_PRD", "NOT_CUR"))
+plot <- ggplot(order) + geom_point(aes(x = period, y = opmarg, color = flg)) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Period") + ylab("Operating Margin") + ggtitle("Where is current month relative to other Op Margin?")
+ggplotly(plot)
+rm(order)
+```
+
+```{r margin_plot_trend}
+plot <- ggplot(decay, aes(x = PERIOD, y = opmarg, colour = PERIOD)) + xlab("Period") + ylab("Operating Margin Decay") + ggtitle("Daily Margin Decay Time Series") + geom_boxplot() + scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ggplotly(plot)
+```
+
+```{r}
+for (prdRec in unique(decay$PERIOD)){
+  # if the merged dataset doesn't exist, create it
+  if (!exists("slopeCoef")){
+    sub_df <- decay[decay$PERIOD == prdRec,]
+    slopeCoef <- setnames(data.frame(prdRec, as.numeric(coef(lm(sub_df$opmarg ~ sub_df$DAY))["sub_df$DAY"])), c("prd", "slope"))
+    rm(sub_df)
+  }
+  
+  # if the merged dataset does exist, append to it
+  if (exists("slopeCoef")){
+    sub_df <- decay[decay$PERIOD == prdRec,]
+    if(length(sub_df$PERIOD) >= 1){
+      temp_datset <- setnames(data.frame(prdRec, as.numeric(coef(lm(sub_df$opmarg ~ sub_df$DAY))["sub_df$DAY"])), c("prd", "slope"))
+      slopeCoef<-rbind(slopeCoef, temp_datset)
+      rm(sub_df, temp_datset)
+    }
+  }
+}
+
+slopeCoef <- slopeCoef[!is.na(slopeCoef$slope), ]
+
+plot <- ggplot(slopeCoef) + geom_point(aes(x = prd, y = slope, color = prd)) + xlab("Period") + ylab("Slope Coefficient") + ggtitle("Slope Coefficient on lm(opmarg ~ DAY)") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ggplotly(plot)
+```
+
+```{r}
+plot <- ggplot(decay) + geom_point(aes(x = opmarg, y = DAY, color = as.factor(DAY))) + ggtitle("Month Day versus Day's Operating Margin")
+ggplotly(plot)
+```
+
+
+```{r margin_plot_by_year}
+plot <- ggplot(decay, aes(x = year, y = opmarg, colour = year)) + xlab("Year") + ylab("Operating Margin") + ggtitle("Margin Decay by Year") + geom_boxplot() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7))
+ggplotly(plot)
+rm(plot)
+```
+
+```{r margin_plot_by_month}
+plot <- ggplot(decay, aes(x = DAY, y = opmarg, colour = month)) + xlab("Day") + ylab("Operating Margin") + ggtitle("Daily Margin Decay by Month") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + facet_grid(~YEAR)
+ggplotly(plot) 
+rm(plot)
+```
+
+
+```{r day model versus opmarg decay}
+#How does operating margin relate to the day of the month? 
+summary(lmResult <- lm(decay$opmarg ~ decay$DAY))
+
+
+#For any given day of the month, what is the realtionship between the day number and the running balance for the month? 
+mod <- lm(decay$runbal ~ decay$DAY)
+summary(mod)
+```
+
+```{r margin_plot_by_marg_flg}
+plot <- ggplot(decay, aes(x = DAY, y = opmarg, colour = marg_flg)) + xlab("Day") + ylab("Operating Margin") + ggtitle("Daily Margin Decay") + geom_boxplot(position = "dodge") + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + scale_x_continuous(breaks = scales::pretty_breaks(n =15)) + theme(axis.text.x = element_text(angle = 50, hjust = 1))
+ggplotly(plot)
+rm(plot)
+```
+
+
+```{r avg_plot_differenced_data_by_PERIOD}
+plot <- ggplot(decay, aes(x = PERIOD, y = avg_prd_diff, colour = PERIOD)) + xlab("Period") + ylab("Average Daily Difference") + ggtitle("Average Daily Difference v. PERIOD") + geom_point()+ scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ggplotly(plot)
+plot <- ggplot(decay, aes(x = avg_prd_diff, y = min_prd_op, colour = PERIOD)) + ylab("Operating Margin") + xlab("Average Daily Difference") + ggtitle("Average Daily Difference v. Period Operating Margin") + geom_point()+ scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + geom_smooth(method = "lm", se=FALSE, color="black")
+ggplotly(plot)
+mod <- lm(decay$min_prd_op ~ decay$avg_prd_diff)
+summary(mod)
+rm(plot)
+```
+
+#Cumulative Distribution
+```{r cdf_transaction}
+c <- ggplot(cdfhist, aes(cdfhist$debitnum * -1)) + stat_ecdf() + coord_flip() + ylab("P(x)") + xlab("Transaction Amount")
+c + facet_wrap(~TRID)
+rm(cdfhist)
+```
+
+#Transaction Analysis
+```{r trans_scatterplot}
+t <- ggplot(trans, aes(x = COUNT, y = SUM , colour = period)) + geom_point() + geom_smooth(method = "lm", se=FALSE, color="black") + ylab("Gross Period Expenses") + xlab("Count Transaction by Period") + ggtitle("Monthly Transaction Sum v. Transaction Count")
+ggplotly(t)
+```
+
+```{r linear expense model}
+mod <- lm(trans$SUM ~ trans$COUNT)
+summary(mod)
+```
