@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "May 2, 2017"
+date: "June 7, 2017"
 output: 
   html_document:
     keep_md: True
@@ -59,18 +59,16 @@ for (tbl in tbls){
   if(tbl == "R_MARGIN_DECAY"){
     sql <- paste0("SELECT YEAR, PERIOD, PERIODKEY, DAY, DEBIT, INCOME FROM ", tbl)
     decay <- dbGetQuery(con, sql)
-    decay <- decay %>% group_by(PERIOD) %>% arrange(PERIODKEY) %>% mutate(runbal = cumsum(DEBIT) * -1)
-    decay$period <- as.factor(decay$PERIOD)
-    decay$year <- as.factor(decay$YEAR)
-    decay$mnthtot <- decay$INCOME + decay$runbal
     decay$PERIOD <- as.factor(decay$PERIOD)
-    decay <- decay[order(decay$PERIOD),]
+    decay <- decay %>% group_by(PERIOD) %>% arrange(PERIOD, DAY) %>% mutate(runbal = cumsum(DEBIT) * -1)
+    decay$YEAR <- as.factor(decay$YEAR)
+    decay$mnthtot <- decay$INCOME + decay$runbal
     decay <- transform(decay, prd_flg=c(0,as.numeric(diff(as.numeric(decay$PERIOD)))))
     decay$prd_flg <- as.numeric(decay$prd_flg)
     decay <- transform(decay, DIFF=c(NA, ifelse(diff(decay$prd_flg) == 0, diff(decay$mnthtot, lag = 1), 0)))
     decay <- transform(decay, DIFF2 = c(NA, ifelse(diff(decay$prd_flg) == 0, diff(decay$DIFF, lag = 1), 0)))
     decay$marg_flg <- as.factor(ifelse(decay$mnthtot < 0, "X<0", ifelse((decay$mnthtot < 1000) & (decay$mnthtot > 0),"0<X<1000","1000<X")))
-    decay$month <- substring(decay$PERIOD,5,7)
+    decay$month <- as.factor(substring(decay$PERIOD,5,7))
     decay$row_num <- as.numeric(rownames(decay))
     decay$opmarg <- as.numeric((decay$mnthtot / decay$INCOME) * 100)
     decay <- decay %>% group_by(DAY) %>% mutate(avg_diff = mean(DIFF), med_diff = median(DIFF))
@@ -280,7 +278,7 @@ plot <- ggplot(decay, aes(x = PERIOD, y = opmarg, colour = PERIOD)) + xlab("Peri
 ggplotly(plot)
 ```
 
-```{r}
+```{r slope_coefficient_by_PERIOD}
 for (prdRec in unique(decay$PERIOD)){
   # if the merged dataset doesn't exist, create it
   if (!exists("slopeCoef")){
@@ -306,14 +304,14 @@ plot <- ggplot(slopeCoef) + geom_point(aes(x = prd, y = slope, color = prd)) + x
 ggplotly(plot)
 ```
 
-```{r}
+```{r opmargin_by_day}
 plot <- ggplot(decay) + geom_point(aes(x = opmarg, y = DAY, color = as.factor(DAY))) + ggtitle("Month Day versus Day's Operating Margin")
 ggplotly(plot)
 ```
 
 
 ```{r margin_plot_by_year}
-plot <- ggplot(decay, aes(x = year, y = opmarg, colour = year)) + xlab("Year") + ylab("Operating Margin") + ggtitle("Margin Decay by Year") + geom_boxplot() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7))
+plot <- ggplot(decay, aes(x = YEAR, y = opmarg, colour = YEAR)) + xlab("Year") + ylab("Operating Margin") + ggtitle("Margin Decay by Year") + geom_boxplot() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7))
 ggplotly(plot)
 rm(plot)
 ```
