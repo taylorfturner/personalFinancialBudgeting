@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "June 7, 2017"
+date: "June 12, 2017"
 output: 
   html_document:
     keep_md: True
@@ -47,6 +47,7 @@ for (tbl in tbls){
     print (sql)
     sumar <- dbGetQuery(con, sql)
     sumar$flg <- as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', '$1500<X'))))
+    sumar <- sumar[order(sumar$PERIOD),]
     sql <- NULL
   }
   
@@ -213,6 +214,7 @@ cur_prd_var
 ```{r margin_analysis_print}
 mean(sumar$OP_MARGIN) #mean
 median(sumar$OP_MARGIN) #median
+ggplot() + geom_histogram(data = sumar, aes(x = OP_MARGIN), binwidth = 10)
 ```
 
 ```{r cat_margin_analysis_boxplot}
