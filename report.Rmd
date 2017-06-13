@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "June 12, 2017"
+date: "June 13, 2017"
 output: 
   html_document:
     keep_md: True
@@ -285,7 +285,7 @@ for (prdRec in unique(decay$PERIOD)){
   # if the merged dataset doesn't exist, create it
   if (!exists("slopeCoef")){
     sub_df <- decay[decay$PERIOD == prdRec,]
-    slopeCoef <- setnames(data.frame(prdRec, as.numeric(coef(lm(sub_df$opmarg ~ sub_df$DAY))["sub_df$DAY"])), c("prd", "slope"))
+    slopeCoef <- setnames(data.frame(prdRec, as.numeric(coef(lm(sub_df$opmarg ~ sub_df$DAY))["sub_df$DAY"]), as.numeric(coef(lm(sub_df$runbal ~ sub_df$DAY))["sub_df$DAY"])), c("prd", "slope", "dollar_slope"))
     rm(sub_df)
   }
   
@@ -293,7 +293,7 @@ for (prdRec in unique(decay$PERIOD)){
   if (exists("slopeCoef")){
     sub_df <- decay[decay$PERIOD == prdRec,]
     if(length(sub_df$PERIOD) >= 1){
-      temp_datset <- setnames(data.frame(prdRec, as.numeric(coef(lm(sub_df$opmarg ~ sub_df$DAY))["sub_df$DAY"])), c("prd", "slope"))
+      temp_datset <- setnames(data.frame(prdRec, as.numeric(coef(lm(sub_df$opmarg ~ sub_df$DAY))["sub_df$DAY"]), as.numeric(coef(lm(sub_df$runbal ~ sub_df$DAY))["sub_df$DAY"])), c("prd", "slope", "dollar_slope"))
       slopeCoef<-rbind(slopeCoef, temp_datset)
       rm(sub_df, temp_datset)
     }
@@ -301,8 +301,18 @@ for (prdRec in unique(decay$PERIOD)){
 }
 
 slopeCoef <- slopeCoef[!is.na(slopeCoef$slope), ]
+slopeCoef$year <- substr(slopeCoef$prd,0,4)
 
-plot <- ggplot(slopeCoef) + geom_point(aes(x = prd, y = slope, color = prd)) + xlab("Period") + ylab("Slope Coefficient") + ggtitle("Slope Coefficient on lm(opmarg ~ DAY)") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+plot <- ggplot(slopeCoef) + geom_point(aes(x = prd, y = slope, color = year)) + xlab("Period") + ylab("Slope Coefficient") + ggtitle("Slope Coefficient Time Series") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ggplotly(plot)
+
+plot <- ggplot(slopeCoef) + geom_point(aes(x = prd, y = dollar_slope, color = year)) + xlab("Period") + ylab("Dollar Slope") + ggtitle("Dollar Slope Coefficient by Period") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ggplotly(plot)
+
+plot <- ggplot(slopeCoef) + geom_boxplot(aes(x = year, y = slope, color = year)) + xlab("Year") + ylab("Slope Coefficient") + ggtitle("Slope Coefficient by Year")
+ggplotly(plot)
+
+plot <- ggplot(slopeCoef) + geom_boxplot(aes(x = year, y = dollar_slope, color = year)) + xlab("Year") + ylab("Dollar Slope") + ggtitle("Dollar Slope Coefficient by Year")
 ggplotly(plot)
 ```
 
