@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "June 13, 2017"
+date: "July 25, 2017"
 output: 
   html_document:
     keep_md: True
@@ -11,14 +11,14 @@ output:
 
 ```{r setup, include=FALSE}
 options(warn = -1)
-require(ggplot2)
-require(lubridate)
-require(dplyr, warn.conflicts = FALSE)
+devtools::install_github('hadley/ggplot2')
+library(lubridate)
+library(dplyr, warn.conflicts = FALSE)
 library(data.table)
-require(plotly)
+library(plotly)
 library(ggExtra)
 library(chron)
-require(RMySQL)
+library(RMySQL)
 knitr::opts_chunk$set(echo = TRUE)
 
 #kill all mysql database connections
@@ -46,14 +46,21 @@ for (tbl in tbls){
     sql <- paste0("SELECT PERIOD, INCOME, EXPENSES, MARGIN, OP_MARGIN FROM ", tbl)
     print (sql)
     sumar <- dbGetQuery(con, sql)
-    sumar$flg <- as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', '$1500<X'))))
-    sumar <- sumar[order(sumar$PERIOD),]
+    sumar <- sumar %>% mutate(
+      flg = as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', '$1500<X'))))) %>% 
+      arrange(as.factor(PERIOD))
     sql <- NULL
   }
   
   if(tbl == "R_CAT_MARGIN"){
     sql <- paste0("SELECT PERIOD, TRID, DEBIT, CREDIT, MARGIN FROM ", tbl)
     catmarg <- dbGetQuery(con, sql)
+    sql <- NULL
+  }
+  
+  if(tbl == "R_BUDGET_VIEW"){
+    sql <- paste0("SELECT PERIOD, TRID, CREDIT FROM ", tbl)
+    budget <- dbGetQuery(con, sql)
     sql <- NULL
   }
   
@@ -102,25 +109,43 @@ for (tbl in tbls){
   if(tbl == "R_HIST"){
     sql <- paste0("SELECT MONTH, PERIOD, dynm, description, TRID, memo, debit, credit, transaction_number FROM ", tbl)
     hist <- dbGetQuery(con, sql)
-    hist$debitnum <- as.numeric(as.character(hist$debit))
-    hist$dynm <- as.numeric(hist$dynm)
-    hist$MONTH <- as.numeric(hist$MONTH)
+    
+    hist <- hist %>% 
+      mutate(
+        debitnum  = as.numeric(as.character(debit)),
+        dynm = as.numeric(dynm),
+        MONTH = as.numeric(MONTH)
+      )
+    
     cdfhist <- subset(hist, debitnum > -100)
+    
     sql <- NULL
   }
   
   if(tbl == "R_TRANS"){
     sql <- paste0("SELECT PERIOD, COUNT, SUM FROM ", tbl)
     trans <- dbGetQuery(con, sql)
-    trans$period <- as.factor(trans$PERIOD)
+    
+    trans <- trans %>% 
+      mutate(
+        period = as.factor(PERIOD)
+      )
+    
     sql <- NULL
   }
   
   if(tbl == "R_SAVINGS"){
     sql <- paste0("SELECT PERIOD, TRID_CODE, CREDIT FROM ", tbl)
     savingproforma <- dbGetQuery(con, sql)
-    savingproforma <- savingproforma %>% group_by(TRID_CODE) %>% mutate(runbal = cumsum(CREDIT))
+    
+    savingproforma <- savingproforma %>% 
+      group_by(TRID_CODE) %>% 
+      mutate(
+        runbal = cumsum(CREDIT)
+      )
+    
     savingproforma$ROW_NUM <- as.numeric(rownames(savingproforma))
+    
     sql <- NULL
   }
 
@@ -182,12 +207,21 @@ nms <- c("TRID", "POS", "NEG")
 setnames(dolnet, nms)
 dolnet$NET <- dolnet$POS + dolnet$NEG
 
-catmarg$ROW_NUM <- NULL
-catmarg$PERIOD <- NULL
-catmarg$DEBIT <- NULL
-catmarg$CREDIT <- NULL
-stdevcatmarg <-catmarg %>% group_by(TRID) %>% mutate(stdev = sd(MARGIN))
-stdevcatmarg$MARGIN <- NULL
+
+catmarg <- catmarg %>% 
+  mutate(
+    ROW_NUM = NULL,
+    PERIOD = NULL,
+    DEBIT = NULL,
+    CREDIT = NULL
+  )
+
+
+stdevcatmarg <- catmarg %>% 
+  group_by(TRID) %>% 
+  mutate(stdev = sd(MARGIN),
+         MARGIN = NULL
+  )
 stdevcatmarg <- unique(stdevcatmarg)
 stdevcatmarg <- data.frame(stdevcatmarg)
 
@@ -214,7 +248,11 @@ cur_prd_var
 ```{r margin_analysis_print}
 mean(sumar$OP_MARGIN) #mean
 median(sumar$OP_MARGIN) #median
-ggplot() + geom_histogram(data = sumar, aes(x = OP_MARGIN), binwidth = 10)
+ggplotly(ggplot() + geom_histogram(data = sumar, aes(x = OP_MARGIN), binwidth = 10) + scale_x_continuous(breaks = scales::pretty_breaks(n = 20)))
+```
+
+```{r daily_spending by period}
+ggplotly(ggplot() + geom_boxplot(data = decay, aes(x = PERIOD, y = DEBIT)) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("BoxPlot of Debit per Day By Period") + scale_y_continuous(breaks = scales::pretty_breaks(n = 10)))
 ```
 
 ```{r cat_margin_analysis_boxplot}
@@ -234,24 +272,18 @@ rm(sumar)
 
 #Savings Analysis
 ```{r saving rate}
-tmp <- read.csv("budget_subsum_view.csv", header = TRUE)
-tmp_one <- subset(tmp, TRID == 'SVTRID')
-tmp <- tmp %>% group_by(PERIOD) %>% summarise(INCOME = sum(CREDIT))
-tmp <- merge(tmp_one, tmp)
-rm(tmp_one)
-tmp_two <- subset(hist, hist$TRID == 'SVTRID')
-tmp_two <- tmp_two %>% group_by(PERIOD, TRID) %>% summarise(savingextract = sum(as.numeric(as.character(debit)) * -1))
-tmp <- merge(tmp, tmp_two, by = "PERIOD", all.x = TRUE)
-tmp$savingextract <- replace(tmp$savingextract, is.na(tmp$savingextract), 0)
-tmp$TRID.y <- NULL
-rm(tmp_two)
-tmp$CREDIT <- tmp$CREDIT - tmp$savingextract
-tmp$savingextract <- NULL
-tmp$rownum <- as.numeric(rownames(tmp))
-tmp$savingrate <- tmp$CREDIT / tmp$INCOME
-ggplot(tmp) + geom_bar(aes(x = rownum, y = savingrate, color = PERIOD), stat = "identity") + xlab("F(t)") + ylab("Savings Rate") + ggtitle("Actual Savings Rate by Period") + scale_y_continuous(breaks = seq(-.50,.50, by = .05))
-tmp
-rm(tmp)
+savingsRate <- budget %>% 
+  group_by(PERIOD) %>% 
+  mutate(
+    INCOME = sum(CREDIT), 
+    savingrate = (CREDIT / INCOME)
+  ) %>% 
+  filter(TRID == 'SVTRID')
+
+ggplot(savingsRate) + geom_bar(aes(x = PERIOD, y = savingrate, color = PERIOD), stat = "identity") + xlab("Period") + ylab("Savings Rate") + ggtitle("Actual Savings Rate by Period") + scale_y_continuous(breaks = seq(-.50,.90, by = .05)) + theme(legend.position="none") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+savingsRate
+
 ```
 
 ```{r saving_projection}
@@ -300,8 +332,12 @@ for (prdRec in unique(decay$PERIOD)){
   }
 }
 
-slopeCoef <- slopeCoef[!is.na(slopeCoef$slope), ]
-slopeCoef$year <- substr(slopeCoef$prd,0,4)
+
+slopeCoef <- slopeCoef %>% 
+  mutate(
+    year = substr(prd,0,4)
+  ) %>% 
+  filter(!is.na(slope))
 
 plot <- ggplot(slopeCoef) + geom_point(aes(x = prd, y = slope, color = year)) + xlab("Period") + ylab("Slope Coefficient") + ggtitle("Slope Coefficient Time Series") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ggplotly(plot)
