@@ -1,8 +1,8 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "July 26, 2017"
-output: 
+date: "August 1, 2017"
+output:
   html_document:
     keep_md: True
     toc: yes
@@ -21,8 +21,8 @@ library(chron)
 library(RMySQL)
 knitr::opts_chunk$set(echo = TRUE)
 
+#function for triming fields of white space
 trim <- function (x) gsub("^\\s+|\\s+$", "", x)
-
 
 #kill all mysql database connections
 killallDBConns <- function(){
@@ -71,47 +71,78 @@ for (tbl in tbls){
   if(tbl == "R_MARGIN_DECAY"){
     sql <- paste0("SELECT YEAR, PERIOD, PERIODKEY, DAY, DEBIT, INCOME FROM ", tbl)
     decay <- dbGetQuery(con, sql)
-    decay$PERIOD <- as.factor(decay$PERIOD)
-    decay <- decay %>% group_by(PERIOD) %>% arrange(PERIOD, DAY) %>% mutate(runbal = cumsum(DEBIT) * -1)
-    decay$YEAR <- as.factor(decay$YEAR)
-    decay$mnthtot <- decay$INCOME + decay$runbal
-    decay <- transform(decay, prd_flg=c(0,as.numeric(diff(as.numeric(decay$PERIOD)))))
-    decay$prd_flg <- as.numeric(decay$prd_flg)
-    decay <- transform(decay, DIFF=c(NA, ifelse(diff(decay$prd_flg) == 0, diff(decay$mnthtot, lag = 1), 0)))
-    decay <- transform(decay, DIFF2 = c(NA, ifelse(diff(decay$prd_flg) == 0, diff(decay$DIFF, lag = 1), 0)))
-    decay$marg_flg <- as.factor(ifelse(decay$mnthtot < 0, "X<0", ifelse((decay$mnthtot < 1000) & (decay$mnthtot > 0),"0<X<1000","1000<X")))
-    decay$month <- as.factor(substring(decay$PERIOD,5,7))
-    decay$row_num <- as.numeric(rownames(decay))
-    decay$opmarg <- as.numeric((decay$mnthtot / decay$INCOME) * 100)
-    decay <- decay %>% group_by(DAY) %>% mutate(avg_diff = mean(DIFF), med_diff = median(DIFF))
-    decay <- decay %>% group_by(PERIOD) %>% mutate(avg_prd_diff = mean(DIFF), avg_prd_op = mean(opmarg), min_prd_op = min(opmarg), median_prd_diff = median(DIFF), min_prd_diff = min(DIFF))
-    decay <- transform(decay, dif_avg_dif = c(NA, ifelse(diff(decay$prd_flg) == 1, diff(decay$avg_prd_diff, lag = 1), 0)))
-    decay$med_avg_prd_diff <- (decay$avg_prd_diff + decay$median_prd_diff)/2
-    decay$date <- paste0(as.character(decay$YEAR), '-', as.character(substr(decay$PERIOD,5,6)), '-',  as.character(decay$DAY))
-    decay$weekday <- weekdays(as.Date(decay$date))
-    decay$day_flg <- chron::is.weekend(decay$date)
+    
+    decay <- decay %>%
+      mutate(PERIOD = as.factor(PERIOD)) %>% 
+      group_by(PERIOD) %>% arrange(PERIOD, DAY) %>% 
+      mutate(
+        runbal = cumsum(DEBIT) * -1,
+        YEAR = as.factor(YEAR),
+        mnthtot = (INCOME + runbal)) %>% 
+      ungroup() %>%
+      mutate(
+        prd_flg = as.numeric(c(0,as.numeric(diff(as.numeric(decay$PERIOD))))),
+        DIFF = c(NA, ifelse(diff(prd_flg) == 0, diff(mnthtot, lag = 1), 0)),
+        marg_flg  = as.factor(ifelse(mnthtot < 0, "X<0", 
+                                     ifelse((mnthtot < 1000 & mnthtot > 0),"0<X<1000","1000<X"))),
+        month = as.factor(substring(PERIOD,5,7)),
+        row_num = as.numeric(rownames(decay)),
+        opmarg = as.numeric((mnthtot/INCOME) * 100)
+      ) %>%
+      group_by(DAY) %>%
+      mutate(
+        avg_diff = mean(DIFF), 
+        med_diff = median(DIFF)
+      ) %>%
+      ungroup() %>%
+      group_by(PERIOD) %>%
+      mutate(
+        avg_prd_diff = mean(DIFF), 
+        avg_prd_op = mean(opmarg), 
+        min_prd_op = min(opmarg), 
+        median_prd_diff = median(DIFF), 
+        min_prd_diff = min(DIFF)
+      ) %>% 
+      ungroup()%>%
+      mutate(
+        dif_avg_dif = c(NA, ifelse(
+          diff(prd_flg) == 1, diff(avg_prd_diff, lag = 1), 0)),
+        med_avg_prd_diff = (avg_prd_diff + median_prd_diff)/2,
+        date = paste0(as.character(YEAR), '-', as.character(substr(PERIOD,5,6)), '-',  as.character(DAY)),
+        weekday = weekdays(as.Date(date)),
+        day_flg = chron::is.weekend(date)
+        )
+    
     sql <- NULL
    }
   
   if(tbl == "R_CUR_MONTH_VAR"){
     sql <- paste0("SELECT TRID, DEBIT, CREDIT, VAR, FLAG FROM ", tbl)
+    
     cur_prd_var <- dbGetQuery(con, sql)
+    
     sql <- NULL
   }
   
   if(tbl == "R_SUMMARY_VIEW"){
     sql <- paste0("SELECT * FROM ", tbl)
+    
     summary_view <- dbGetQuery(con, sql)
-    cat_bal_tmp <- data.frame(summary_view$PERIOD, summary_view$TRID, summary_view$VAR)
-    setnames(cat_bal_tmp, c("PERIOD", "TRID", "VAR"))
-    cat_bal <- cat_bal_tmp %>% group_by(TRID) %>% mutate(bal_sum = sum(VAR))
-    rm(cat_bal_tmp, summary_view)
-    cat_bal <- unique(cat_bal)
+    
+    cat_bal <- setnames(data.frame(summary_view$PERIOD, summary_view$TRID, summary_view$VAR), c("PERIOD", "TRID", "VAR")) %>% 
+      group_by(TRID) %>% 
+      mutate(bal_sum = sum(VAR)) %>% 
+      unique()
+    
+    rm(summary_view)
+
+    
     sql <- NULL
   }
   
   if(tbl == "R_HIST"){
     sql <- paste0("SELECT MONTH, PERIOD, dynm, description, TRID, memo, debit, credit, transaction_number FROM ", tbl)
+    
     hist <- dbGetQuery(con, sql)
     
     hist <- hist %>% 
@@ -146,17 +177,20 @@ for (tbl in tbls){
       group_by(TRID_CODE) %>% 
       mutate(
         runbal = cumsum(CREDIT)
+      ) %>% 
+      ungroup() %>% 
+      mutate(
+        ROW_NUM = as.numeric(rownames(savingproforma))
       )
-    
-    savingproforma$ROW_NUM <- as.numeric(rownames(savingproforma))
     
     sql <- NULL
   }
 
 }
 
+rm(tbl, tbls, sql)
 
-#catmarg <- read.csv(file = "r_cat_margin.csv", strip.white = TRUE, header = TRUE)
+dbDisconnect(con)
 
 # count and sum margin by transaction id where margin is negative
 neg <- setnames(data.frame(catmarg$TRID, catmarg$MARGIN), c("TRID", "MARGIN")) %>% 
@@ -203,12 +237,6 @@ stdevcatmarg <- catmarg %>%
   unique()
 
 rm(catmarg)
-
-#delete mysql connection
-dbDisconnect(con)
-attach(decay)
-attach(savingproforma)
-attach(sumar)
 ```
 
 # Margin Analysis
@@ -242,7 +270,7 @@ ggplot() + geom_point(data = neg, aes(x = TRID, y = sum, colour = TRID)) + geom_
 ```
 
 ```{r cat_margin_NET}
-ggplot(net) + geom_bar(aes(x = TRID, y = netMargin, fill = TRID), stat = "identity") + xlab("Transaction ID") + ylab("Count of Net Dollar Margin") + ggtitle("Count of Net Dollar Margin")
+ggplot(net) + geom_bar(aes(x = TRID, y = netCount, fill = TRID), stat = "identity") + xlab("Transaction ID") + ylab("Count of Net Dollar Margin") + ggtitle("Count of Net Dollar Margin")
 net
 rm(net)
 ```
@@ -254,22 +282,44 @@ rm(sumar)
 
 #Savings Analysis
 ```{r saving rate}
-savingsRate <- budget %>% 
+tmp <- hist %>% 
+  mutate(debit = as.numeric(debit)) %>% 
+  filter(TRID == 'SVTRID') %>% 
+  select(PERIOD, debit) %>% 
+  group_by(PERIOD) %>% 
+  mutate(
+    debit = sum(debit)
+  ) %>% 
+  ungroup() %>%
+  filter(!is.na(debit))
+
+savingsRate <- budget %>%
+  left_join(tmp, by = "PERIOD") %>% 
   group_by(PERIOD) %>% 
   mutate(
     INCOME = sum(CREDIT), 
+    CREDIT = ifelse(!is.na(debit), (CREDIT + debit), CREDIT),
     savingrate = (CREDIT / INCOME)
+  ) %>%
+  filter(TRID == 'SVTRID') %>% 
+  ungroup() %>% 
+  mutate(
+    runbal = cumsum(CREDIT)
   ) %>% 
-  filter(TRID == 'SVTRID')
+  select(-debit)
 
 ggplot(savingsRate) + geom_point(aes(x = PERIOD, y = savingrate), stat = "identity") + xlab("Period") + ylab("Savings Rate") + ggtitle("Actual Savings Rate by Period") + scale_y_continuous(breaks = seq(-.50,.90, by = .05)) + theme(legend.position="none") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-savingsRate
+tail(savingsRate)
+
+rm(tmp)
 
 ```
 
 ```{r saving_projection}
-ggplotly(ggplot(savingproforma, aes(x = ROW_NUM, y = runbal)) + geom_bar(stat = "identity") + ylab("Cumulative Savings"))
+ggplotly(ggplot(savingsRate, aes(x = PERIOD, y = runbal)) + geom_bar(stat = "identity") + ggtitle("Actual Cumulative Savings") + theme(axis.text.x = element_text(angle = 90, hjust = 1)))
+
+ggplotly(ggplot(savingproforma, aes(x = ROW_NUM, y = runbal)) + geom_bar(stat = "identity") + ggtitle("Budgeted Cumulative Savings"))
 ```
 
 # Margin Decay
@@ -286,7 +336,7 @@ order <- setnames(data.frame(decay$PERIOD, decay$min_prd_op), c("period", "opmar
   ) %>% 
   unique()
 
-plot <- ggplot(order) + geom_density(aes(x = opmarg)) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Period") + ylab("Operating Margin") + ggtitle("Density Plot of Period Operating Margins")
+plot <- ggplot(order) + geom_density(aes(x = opmarg)) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("Operating Margin") + ylab("P(Operating Margin)") + ggtitle("Density Plot of Period Operating Margins")
 ggplotly(plot)
 rm(order)
 ```
