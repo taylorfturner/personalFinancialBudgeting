@@ -11,9 +11,8 @@ output:
 
 ```{r setup, include=FALSE}
 options(warn = -1)
-devtools::install_github('hadley/ggplot2')
+library(tidyverse)
 library(lubridate)
-library(dplyr, warn.conflicts = FALSE)
 library(data.table)
 library(plotly)
 library(ggExtra)
@@ -50,7 +49,8 @@ for (tbl in tbls){
     print (sql)
     sumar <- dbGetQuery(con, sql)
     sumar <- sumar %>% mutate(
-      flg = as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', '$1500<X'))))) %>% 
+      flg = as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', 
+                                                                                                                           ifelse(sumar$MARGIN > 1500 & sumar$MARGIN < 2000, '$1500<X$2000', '$2000<X')))))) %>% 
       arrange(as.factor(PERIOD))
     sql <- NULL
   }
@@ -308,7 +308,7 @@ savingsRate <- budget %>%
   ) %>% 
   select(-debit)
 
-ggplot(savingsRate) + geom_point(aes(x = PERIOD, y = savingrate), stat = "identity") + xlab("Period") + ylab("Savings Rate") + ggtitle("Actual Savings Rate by Period") + scale_y_continuous(breaks = seq(-.50,.90, by = .05)) + theme(legend.position="none") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ggplotly(ggplot(savingsRate) + geom_point(aes(x = PERIOD, y = savingrate), stat = "identity") + xlab("Period") + ylab("Savings Rate") + ggtitle("Actual Savings Rate by Period") + scale_y_continuous(breaks = seq(-.50,.90, by = .05)) + theme(legend.position="none") + theme(axis.text.x = element_text(angle = 90, hjust = 1)))
 
 tail(savingsRate)
 
@@ -411,8 +411,7 @@ summary(lmResult <- lm(decay$opmarg ~ decay$DAY))
 
 
 #For any given day of the month, what is the realtionship between the day number and the running balance for the month? 
-mod <- lm(decay$runbal ~ decay$DAY)
-summary(mod)
+summary(lm(decay$runbal ~ decay$DAY))
 ```
 
 ```{r margin_plot_by_marg_flg}
@@ -433,8 +432,7 @@ plot <- ggplot(decay, aes(x = avg_prd_diff, y = min_prd_op, colour = PERIOD)) + 
 
 ggplotly(plot)
 
-mod <- lm(decay$min_prd_op ~ decay$avg_prd_diff)
-summary(mod)
+summary(lm(decay$min_prd_op ~ decay$avg_prd_diff))
 
 rm(plot)
 ```
@@ -453,6 +451,5 @@ ggplotly(t)
 ```
 
 ```{r linear expense model}
-mod <- lm(trans$SUM ~ trans$COUNT)
-summary(mod)
+summary(lm(trans$SUM ~ trans$COUNT))
 ```
