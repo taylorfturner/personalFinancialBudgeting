@@ -114,7 +114,30 @@ for (tbl in tbls){
         )
     
     sql <- NULL
-   }
+  }
+  
+
+  if(tbl == "R_MARGIN_TRIDDECAY"){
+    sql <- paste0("SELECT YEAR, PERIOD, PERIODKEY, DAY, TRID, DEBIT, INCOME FROM ", tbl)
+    
+    tridDecay <- dbGetQuery(con, sql)
+    
+    tridDecay <- tridDecay %>%
+      mutate(PERIOD = as.factor(PERIOD)) %>%
+      group_by(PERIOD, TRID) %>%
+      arrange(PERIOD, TRID, DAY) %>%
+      mutate(
+        runbal = cumsum(DEBIT) * -1,
+        YEAR = as.factor(YEAR),
+        mnthtot = (INCOME + runbal)) %>%
+      ungroup() %>%
+      arrange(PERIOD, TRID) %>% 
+      mutate(
+        marg_flg  = as.factor(ifelse(mnthtot < 0, "Negative", "Positive"))
+      )
+    
+    sql <- NULL
+  }
   
   if(tbl == "R_CUR_MONTH_VAR"){
     sql <- paste0("SELECT TRID, DEBIT, CREDIT, VAR, FLAG FROM ", tbl)
@@ -324,7 +347,13 @@ ggplotly(ggplot(savingproforma, aes(x = ROW_NUM, y = runbal)) + geom_bar(stat = 
 
 # Margin Decay
 ```{r margin_decay_period}
-ggplot(decay, aes(x = DAY, y = mnthtot, colour = marg_flg)) + xlab("Day") + ylab("Margin Decay") + geom_area() + ggtitle("Margin Decay Warp by Period") + facet_wrap(~PERIOD)
+ggplot(decay, aes(x = DAY, y = mnthtot, colour = marg_flg)) + xlab("Day") + ylab("Margin Decay") + geom_area() + ggtitle("Margin Decay Wrap by Period") + facet_wrap(~PERIOD)
+
+tmptridDecay <- tridDecay[tridDecay$TRID == "FTRID",]
+ggplot(tmptridDecay, aes(x = DAY, y = mnthtot, color = marg_flg)) + xlab("Day") + ylab("Margin Decay") + geom_area() + ggtitle("Margin Decay Wrap by Period for Food") + facet_wrap(~PERIOD)
+
+tmptridDecay <- tridDecay[tridDecay$TRID == "HTRID",]
+ggplot(tmptridDecay, aes(x = DAY, y = mnthtot, color = marg_flg)) + xlab("Day") + ylab("Margin Decay") + geom_area() + ggtitle("Margin Decay Wrap by Period for Housing") + facet_wrap(~PERIOD)
 ```
 
 ```{r margin_order}
