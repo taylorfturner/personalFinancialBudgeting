@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "August 1, 2017"
+date: "August 2, 2017"
 output:
   html_document:
     keep_md: True
@@ -133,7 +133,8 @@ for (tbl in tbls){
       ungroup() %>%
       arrange(PERIOD, TRID) %>% 
       mutate(
-        marg_flg  = as.factor(ifelse(mnthtot < 0, "Negative", "Positive"))
+        marg_flg  = as.factor(ifelse(mnthtot < 0, "Negative", "Positive")),
+        prdTrid = as.factor(paste0(PERIOD,TRID))
       )
     
     sql <- NULL
@@ -414,6 +415,7 @@ ggplotly(plot)
 plot <- ggplot(slopeCoef) + geom_boxplot(aes(x = year, y = dollar_slope, color = year)) + xlab("Year") + ylab("Dollar Slope") + ggtitle("Dollar Slope Coefficient by Year")
 ggplotly(plot)
 ```
+
 
 ```{r opmargin_by_day}
 plot <- ggplot(decay) + geom_point(aes(x = opmarg, y = DAY, color = as.factor(DAY))) + ggtitle("Month Day versus Day's Operating Margin")
