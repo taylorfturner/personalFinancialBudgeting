@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "August 2, 2017"
+date: "August 5, 2017"
 output:
   html_document:
     keep_md: True
@@ -265,7 +265,7 @@ rm(catmarg)
 
 # Margin Analysis
 ```{r margin_analysis}
-plot <- ggplot(sumar) + geom_bar(aes(x = as.factor(PERIOD), y = OP_MARGIN, fill = flg), stat = "identity") + scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) + ylab("Operating Margin") + xlab("Period") + ggtitle("Time Series of Operating Margin") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+plot <- ggplot(sumar) + geom_bar(aes(x = as.factor(PERIOD), y = OP_MARGIN, fill = flg), stat = "identity") + scale_y_continuous(breaks = scales::pretty_breaks(n = 15)) + ylab("Operating Margin") + xlab("Period") + ggtitle("Time Series of Operating Margin") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 plot
 
@@ -355,6 +355,15 @@ ggplot(tmptridDecay, aes(x = DAY, y = mnthtot, color = marg_flg)) + xlab("Day") 
 
 tmptridDecay <- tridDecay[tridDecay$TRID == "HTRID",]
 ggplot(tmptridDecay, aes(x = DAY, y = mnthtot, color = marg_flg)) + xlab("Day") + ylab("Margin Decay") + geom_area() + ggtitle("Margin Decay Wrap by Period for Housing") + facet_wrap(~PERIOD)
+
+tmptridDecay <- tridDecay[tridDecay$TRID == "TTRID",]
+ggplot(tmptridDecay, aes(x = DAY, y = mnthtot, color = marg_flg)) + xlab("Day") + ylab("Margin Decay") + geom_area() + ggtitle("Margin Decay Wrap by Period for Transportation") + facet_wrap(~PERIOD)
+
+tmptridDecay <- tridDecay[tridDecay$TRID == "PHTRID",]
+ggplot(tmptridDecay, aes(x = DAY, y = mnthtot, color = marg_flg)) + xlab("Day") + ylab("Margin Decay") + geom_area() + ggtitle("Margin Decay Wrap by Period for Personal Hygene") + facet_wrap(~PERIOD)
+
+tmptridDecay <- tridDecay[tridDecay$TRID == "PRTRID",]
+ggplot(tmptridDecay, aes(x = DAY, y = mnthtot, color = marg_flg)) + xlab("Day") + ylab("Margin Decay") + geom_area() + ggtitle("Margin Decay Wrap by Period for Personal") + facet_wrap(~PERIOD)
 ```
 
 ```{r margin_order}
