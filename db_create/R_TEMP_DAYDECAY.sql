@@ -1,0 +1,5 @@
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `r_temp_daydecay`
+AS SELECT
+   if((length(month(`transaction`.`timestamp_key`)) = 1),convert(concat(year(`transaction`.`timestamp_key`),'0',month(`transaction`.`timestamp_key`)) using utf8),convert(concat(year(`transaction`.`timestamp_key`),month(`transaction`.`timestamp_key`)) using utf8)) AS `PERIOD`,concat(if((length(month(`transaction`.`timestamp_key`)) = 1),convert(concat(year(`transaction`.`timestamp_key`),'0',month(`transaction`.`timestamp_key`)) using utf8),convert(concat(year(`transaction`.`timestamp_key`),month(`transaction`.`timestamp_key`)) using utf8)),dayofmonth(`transaction`.`timestamp_key`)) AS `PERIODKEY`,dayofmonth(`transaction`.`timestamp_key`) AS `DAY`,
+   `transaction`.`TRID` AS `TRID`,(sum(`transaction`.`debit`) * -(1)) AS `DEBIT`
+FROM `transaction` where ((`transaction`.`debit` * -(1)) > 0) group by `PERIOD`,`PERIODKEY`,`DAY`,`transaction`.`TRID`;
