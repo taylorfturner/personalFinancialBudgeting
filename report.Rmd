@@ -273,6 +273,14 @@ plot <- ggplot(sumar) + geom_bar(aes(x = as.factor(PERIOD), y = OP_MARGIN, fill 
 
 plot
 
+plot <- ggplot(sumar) + geom_bar(aes(x = as.factor(PERIOD), y = MARGIN, fill = flg), stat = "identity") + scale_y_continuous(breaks = scales::pretty_breaks(n = 15)) + ylab("Dollar Margin") + xlab("Period") + ggtitle("Time Series of Dollar Margin") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+plot
+
+plot <- ggplot(sumar) + geom_point(aes(x = OP_MARGIN, y = MARGIN, color = flg), stat = "identity") + scale_y_continuous(breaks = scales::pretty_breaks(n = 15)) + ylab("Dollar Margin") + xlab("Operating Margin") + ggtitle("Dollar Margin vs. Percent Operating Margin") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+plot
+
 sumar[1:6]
 ```
 
