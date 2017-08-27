@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "August 5, 2017"
+date: "August 27, 2017"
 output:
   html_document:
     keep_md: True
@@ -49,8 +49,7 @@ for (tbl in tbls){
     print (sql)
     sumar <- dbGetQuery(con, sql)
     sumar <- sumar %>% mutate(
-      flg = as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', 
-                                                                                                                           ifelse(sumar$MARGIN > 1500 & sumar$MARGIN < 2000, '$1500<X$2000', '$2000<X')))))) %>% 
+      flg = as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', ifelse(sumar$MARGIN > 1500 & sumar$MARGIN < 2000, '$1500<X$2000', '$2000<X')))))) %>% 
       arrange(as.factor(PERIOD))
     sql <- NULL
   }
@@ -116,6 +115,11 @@ for (tbl in tbls){
     sql <- NULL
   }
   
+  if(tbl == "R_CUR_BALANCE"){
+    sql <- paste0("SELECT PERIOD, TRID, BALANCE, MONTH_DEBIT FROM ", tbl)
+    
+    curBalance <- dbGetQuery(con, sql)
+  }
 
   if(tbl == "R_MARGIN_TRIDDECAY"){
     sql <- paste0("SELECT YEAR, PERIOD, PERIODKEY, DAY, TRID, DEBIT, INCOME FROM ", tbl)
@@ -274,6 +278,7 @@ sumar[1:6]
 
 ```{r cur_prd_var}
 cur_prd_var
+curBalance
 ```
 
 
@@ -283,6 +288,28 @@ mean(sumar$OP_MARGIN) #mean
 median(sumar$OP_MARGIN) #median
 
 ggplotly(ggplot() + geom_histogram(data = sumar, aes(x = OP_MARGIN), binwidth = 10) + scale_x_continuous(breaks = scales::pretty_breaks(n = 20)))
+```
+
+```{r percentOfMarginDriver}
+pcntDriver <- hist %>% 
+  filter(!is.na(debitnum)) %>% 
+  group_by(PERIOD) %>% 
+  mutate(
+    maxTrans = (min(debitnum) * -1)
+  ) %>% 
+  select(PERIOD, maxTrans) %>% 
+  filter(maxTrans > 0.00) %>% 
+  unique()
+
+pcntDriver <- left_join(pcntDriver, sumar, by = "PERIOD") 
+
+pcntDriver <- pcntDriver %>% 
+  select(PERIOD, maxTrans, INCOME, OP_MARGIN, flg) %>% 
+  mutate(
+    maxPercentageofTot = (maxTrans/INCOME)
+  )
+  
+ggplot(pcntDriver) + geom_bar(aes(x = as.factor(PERIOD), y = maxPercentageofTot, color = flg), stat = "identity") + scale_y_continuous(breaks = scales::pretty_breaks(n = 15)) + ylab("Max Transaction as Percent of Income") + xlab("Period") + ggtitle("Time Series of Max Transaction as Percent of Income") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 
 ```{r daily_spending by period}
@@ -334,10 +361,9 @@ savingsRate <- budget %>%
 
 ggplotly(ggplot(savingsRate) + geom_point(aes(x = PERIOD, y = savingrate), stat = "identity") + xlab("Period") + ylab("Savings Rate") + ggtitle("Actual Savings Rate by Period") + scale_y_continuous(breaks = seq(-.50,.90, by = .05)) + theme(legend.position="none") + theme(axis.text.x = element_text(angle = 90, hjust = 1)))
 
-tail(savingsRate)
+savingsRate[20:38,]
 
 rm(tmp)
-
 ```
 
 ```{r saving_projection}
@@ -439,8 +465,10 @@ rm(plot)
 ```
 
 ```{r margin_plot_by_month}
-plot <- ggplot(decay, aes(x = DAY, y = opmarg, colour = month)) + xlab("Day") + ylab("Operating Margin") + ggtitle("Daily Margin Decay by Month") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + facet_grid(~YEAR)
-ggplotly(plot) 
+ggplot(decay, aes(x = DAY, y = opmarg, colour = month)) + xlab("Day") + ylab("Operating Margin") + ggtitle("Daily Margin Decay by Month") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + facet_grid(~YEAR)
+
+ggplot(decay, aes(x = DAY, y = opmarg, colour = YEAR)) + xlab("Day") + ylab("Operating Margin") + ggtitle("Daily Margin Decay by Year") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7))
+
 rm(plot)
 ```
 
