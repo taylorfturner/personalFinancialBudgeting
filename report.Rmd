@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "August 27, 2017"
+date: "November 12, 2017"
 output:
   html_document:
     keep_md: True
@@ -18,6 +18,7 @@ library(plotly)
 library(ggExtra)
 library(chron)
 library(RMySQL)
+
 knitr::opts_chunk$set(echo = TRUE)
 
 #function for triming fields of white space
@@ -49,7 +50,8 @@ for (tbl in tbls){
     print (sql)
     sumar <- dbGetQuery(con, sql)
     sumar <- sumar %>% mutate(
-      flg = as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', ifelse(sumar$MARGIN > 1500 & sumar$MARGIN < 2000, '$1500<X$2000', '$2000<X')))))) %>% 
+      flg = as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', ifelse(sumar$MARGIN > 1500 & sumar$MARGIN < 2000, '$1500<X$2000', '$2000<X'))))), 
+      dollarDif = c(0,diff(MARGIN, lag = 1))) %>% 
       arrange(as.factor(PERIOD))
     sql <- NULL
   }
@@ -82,8 +84,11 @@ for (tbl in tbls){
       mutate(
         prd_flg = as.numeric(c(0,as.numeric(diff(as.numeric(decay$PERIOD))))),
         DIFF = c(NA, ifelse(diff(prd_flg) == 0, diff(mnthtot, lag = 1), 0)),
-        marg_flg  = as.factor(ifelse(mnthtot < 0, "X<0", 
-                                     ifelse((mnthtot < 1000 & mnthtot > 0),"0<X<1000","1000<X"))),
+        marg_flg  = as.factor(
+          ifelse(mnthtot < 0, "X<0", 
+          ifelse((mnthtot < 1000 & mnthtot > 0),"0<X<1000",
+          ifelse((mnthtot > 1000 & mnthtot < 1500), "1000<X<1500",
+          ifelse((mnthtot < 2000 & mnthtot > 1500), "1500<X<2000", "2000<X"))))),
         month = as.factor(substring(PERIOD,5,7)),
         row_num = as.numeric(rownames(decay)),
         opmarg = as.numeric((mnthtot/INCOME) * 100)
@@ -145,7 +150,7 @@ for (tbl in tbls){
   }
   
   if(tbl == "R_CUR_MONTH_VAR"){
-    sql <- paste0("SELECT TRID, DEBIT, CREDIT, VAR, FLAG FROM ", tbl)
+    sql <- paste0("SELECT TRID, DEBIT, CREDIT, VAR, FLAG, BUDGET_PERCENTAGE, ACTUAL_PERCENTAGE FROM ", tbl)
     
     cur_prd_var <- dbGetQuery(con, sql)
     
@@ -277,6 +282,15 @@ plot <- ggplot(sumar) + geom_bar(aes(x = as.factor(PERIOD), y = MARGIN, fill = f
 
 plot
 
+
+plot <- ggplot(sumar) + geom_bar(aes(x = as.factor(PERIOD), y = EXPENSES, fill = flg), stat = "identity") + scale_y_continuous(breaks = scales::pretty_breaks(n = 15)) + ylab("Dollar Expenses") + xlab("Period") + ggtitle("Time Series of Dollar Expenses") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+plot
+
+plot <- ggplot(sumar) + geom_bar(aes(x = as.factor(PERIOD), y = dollarDif, fill = flg), stat = "identity") + scale_y_continuous(breaks = scales::pretty_breaks(n = 15)) + ylab("Dollar Margin Diff") + xlab("Period") + ggtitle("Time Series of Dollar Margin Month over Month") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+plot
+
 plot <- ggplot(sumar) + geom_point(aes(x = OP_MARGIN, y = MARGIN, color = flg), stat = "identity") + scale_y_continuous(breaks = scales::pretty_breaks(n = 15)) + ylab("Dollar Margin") + xlab("Operating Margin") + ggtitle("Dollar Margin vs. Percent Operating Margin") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 plot
@@ -295,7 +309,7 @@ mean(sumar$OP_MARGIN) #mean
 
 median(sumar$OP_MARGIN) #median
 
-ggplotly(ggplot() + geom_histogram(data = sumar, aes(x = OP_MARGIN), binwidth = 10) + scale_x_continuous(breaks = scales::pretty_breaks(n = 20)))
+ggplotly(ggplot() + geom_histogram(data =  sumar, aes(x = OP_MARGIN), binwidth = 5) + scale_x_continuous(breaks = scales::pretty_breaks(n = 10)))
 ```
 
 ```{r percentOfMarginDriver}
@@ -316,8 +330,44 @@ pcntDriver <- pcntDriver %>%
   mutate(
     maxPercentageofTot = (maxTrans/INCOME)
   )
-  
+
 ggplot(pcntDriver) + geom_bar(aes(x = as.factor(PERIOD), y = maxPercentageofTot, color = flg), stat = "identity") + scale_y_continuous(breaks = scales::pretty_breaks(n = 15)) + ylab("Max Transaction as Percent of Income") + xlab("Period") + ggtitle("Time Series of Max Transaction as Percent of Income") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r tridCountTrend}
+tridCount <- hist %>% 
+  mutate(
+    tranNum = as.factor(substr(transaction_number,0,1))
+  ) %>% 
+  select(PERIOD, tranNum, debit) %>% 
+  group_by(PERIOD, tranNum) %>% 
+  mutate(
+    one = 1,
+    tranNumSum = sum(one),
+    transAmount = sum(as.numeric(debit))
+  ) %>% 
+  select(PERIOD, tranNumSum, transAmount) %>% unique() %>% 
+  ungroup() %>%
+  mutate(
+    tranNum = ifelse(tranNum == '3', 'Food', 
+                     ifelse(tranNum == '1', 'Housing',
+                            ifelse(tranNum == '2', 'Digital',
+                                   ifelse(tranNum == '4', 'Clothing', 
+                                          ifelse(tranNum == '5', 'Transportation', 
+                                                 ifelse(tranNum == '6', 'Hygene',
+                                                        ifelse(tranNum == '7', 'Personal', 
+                                                               ifelse(tranNum == '8', 'Savings','Other')))))))),
+    dolPerTrans = (transAmount / tranNumSum),
+    transPerDollar = (tranNumSum / transAmount),
+    transPerdolPerTrans = (tranNumSum / dolPerTrans),
+    transPerDollarMult = (tranNumSum / dolPerTrans) * 10
+  )
+
+ggplot(tridCount, aes(x = PERIOD, y = (dolPerTrans * -1), fill = tranNum)) + geom_bar(stat = 'identity') + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Trend Of Dollar Per Purchase By Category By Day") + xlab("Period") + ylab("Dollar Per Transaction by Category")
+
+ggplot(tridCount, aes(x = PERIOD, y = (transPerdolPerTrans * -1), fill = tranNum)) + geom_bar(stat = 'identity') + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Trend Of Purchase Per Dollar By Category By Day") + xlab("Period") + ylab("Transaction Per Dollar by Category")
+
+ggplot(tridCount) + geom_point(aes(x = (dolPerTrans * -1), y = (transPerdolPerTrans * -1), color = PERIOD)) + xlab("Dollar Per Transaction") + ylab("Transaction Per Dollar by Category") + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Dollar Per Transaction v. Transation Per Dollar")
 ```
 
 ```{r daily_spending by period}
@@ -336,10 +386,9 @@ rm(net)
 
 ```{r stdev_margin}
 ggplot() + geom_bar(data = stdevcatmarg, aes(x = TRID, y = stdev, fill = TRID), stat = "identity") + xlab("Transaction ID") + ylab("Sigma of Dollar Margin") + ggtitle("Standard Deviation of Net Dollar Margin")
-rm(sumar)
 ```
 
-#Savings Analysis
+#Net Income
 ```{r saving rate}
 tmp <- hist %>% 
   mutate(debit = as.numeric(debit)) %>% 
@@ -367,18 +416,36 @@ savingsRate <- budget %>%
   ) %>% 
   select(-debit)
 
-ggplotly(ggplot(savingsRate) + geom_point(aes(x = PERIOD, y = savingrate), stat = "identity") + xlab("Period") + ylab("Savings Rate") + ggtitle("Actual Savings Rate by Period") + scale_y_continuous(breaks = seq(-.50,.90, by = .05)) + theme(legend.position="none") + theme(axis.text.x = element_text(angle = 90, hjust = 1)))
+tmp <- merge(savingsRate, sumar, by = "PERIOD")
+tmp <- tmp %>% 
+  mutate(
+    moneyForMonthRemaining = (MARGIN - CREDIT)
+  ) %>% 
+  select(PERIOD, moneyForMonthRemaining)
 
-savingsRate[20:38,]
+ggplotly(ggplot(tmp) + geom_point(aes(x = as.factor(PERIOD), y = moneyForMonthRemaining)) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + xlab("PERIOD") + ylab("netIncomePostSavings") + ggtitle("Net Income By Period"))
 
 rm(tmp)
 ```
 
+#Savings Analysis
 ```{r saving_projection}
+ggplotly(ggplot(savingsRate) + geom_point(aes(x = PERIOD, y = savingrate), stat = "identity") + xlab("Period") + ylab("Savings Rate") + ggtitle("Actual Savings Rate by Period") + scale_y_continuous(breaks = seq(-.50,.90, by = .05)) + theme(legend.position="none") + theme(axis.text.x = element_text(angle = 90, hjust = 1)))
+
+savingsRate[20:38,]
+
 ggplotly(ggplot(savingsRate, aes(x = PERIOD, y = runbal)) + geom_bar(stat = "identity") + ggtitle("Actual Cumulative Savings") + theme(axis.text.x = element_text(angle = 90, hjust = 1)))
 
 ggplotly(ggplot(savingproforma, aes(x = ROW_NUM, y = runbal)) + geom_bar(stat = "identity") + ggtitle("Budgeted Cumulative Savings"))
 ```
+
+#First Difference
+```{r daily difference}
+ggplot() + geom_boxplot(data = decay, aes(x = weekday, y = abs(avg_diff))) + ggtitle("Average Daily Difference by Weekday") + xlab("Weekday") + ylab("Average Difference")
+
+ggplot() + geom_boxplot(data = decay, aes(x = month, y = abs(avg_diff))) + ggtitle("Average Daily Difference by Month") + xlab("Month") + ylab("Average Difference")
+```
+
 
 # Margin Decay
 ```{r margin_decay_period}
@@ -470,10 +537,16 @@ ggplotly(plot)
 plot <- ggplot(decay, aes(x = YEAR, y = opmarg, colour = YEAR)) + xlab("Year") + ylab("Operating Margin") + ggtitle("Margin Decay by Year") + geom_boxplot() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7))
 ggplotly(plot)
 rm(plot)
+
+plot <- ggplot(decay, aes(x = YEAR, y = mnthtot, colour = YEAR)) + xlab("Year") + ylab("Dollar Margin") + ggtitle("Margin Decay by Year") + geom_boxplot() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7))
+ggplotly(plot)
+rm(plot)
 ```
 
 ```{r margin_plot_by_month}
 ggplot(decay, aes(x = DAY, y = opmarg, colour = month)) + xlab("Day") + ylab("Operating Margin") + ggtitle("Daily Margin Decay by Month") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + facet_grid(~YEAR)
+
+ggplot(decay, aes(x = DAY, y = mnthtot, colour = month)) + xlab("Day") + ylab("Dollar Margin") + ggtitle("Daily Margin Decay by Month") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + facet_grid(~YEAR)
 
 ggplot(decay, aes(x = DAY, y = opmarg, colour = YEAR)) + xlab("Day") + ylab("Operating Margin") + ggtitle("Daily Margin Decay by Year") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7))
 
