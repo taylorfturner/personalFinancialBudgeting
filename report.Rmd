@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "November 12, 2017"
+date: "November 26, 2017"
 output:
   html_document:
     keep_md: True
@@ -91,8 +91,8 @@ for (tbl in tbls){
           ifelse((mnthtot < 2000 & mnthtot > 1500), "1500<X<2000", "2000<X"))))),
         month = as.factor(substring(PERIOD,5,7)),
         row_num = as.numeric(rownames(decay)),
-        opmarg = as.numeric((mnthtot/INCOME) * 100)
-      ) %>%
+        opmarg = as.numeric((mnthtot/INCOME) * 100),
+        opmargDIFF = abs(c(NA, ifelse(diff(prd_flg) == 0, diff(opmarg, lag = 1), 0)))) %>%
       group_by(DAY) %>%
       mutate(
         avg_diff = mean(DIFF), 
@@ -115,7 +115,8 @@ for (tbl in tbls){
         date = paste0(as.character(YEAR), '-', as.character(substr(PERIOD,5,6)), '-',  as.character(DAY)),
         weekday = weekdays(as.Date(date)),
         day_flg = chron::is.weekend(date)
-        )
+        ) %>% 
+      na.omit()
     
     sql <- NULL
   }
@@ -545,6 +546,8 @@ rm(plot)
 
 ```{r margin_plot_by_month}
 ggplot(decay, aes(x = DAY, y = opmarg, colour = month)) + xlab("Day") + ylab("Operating Margin") + ggtitle("Daily Margin Decay by Month") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + facet_grid(~YEAR)
+
+ggplotly(ggplot(decay, aes(x = DAY, y = opmargDIFF, colour = month)) + xlab("Day") + ylab("Operating Margin First Difference") + ggtitle("First Difference of Daily Margin Decay by Month") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + facet_grid(~YEAR))
 
 ggplot(decay, aes(x = DAY, y = mnthtot, colour = month)) + xlab("Day") + ylab("Dollar Margin") + ggtitle("Daily Margin Decay by Month") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + facet_grid(~YEAR)
 
