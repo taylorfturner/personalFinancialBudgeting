@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "December 10, 2017"
+date: "December 11, 2017"
 output:
   html_document:
     keep_md: True
@@ -18,6 +18,7 @@ library(plotly)
 library(ggExtra)
 library(chron)
 library(RMySQL)
+library(heatmaply)
 
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -50,7 +51,7 @@ for (tbl in tbls){
     print (sql)
     sumar <- dbGetQuery(con, sql)
     sumar <- sumar %>% mutate(
-      flg = as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', ifelse(sumar$MARGIN > 1500 & sumar$MARGIN < 1750, '$1500<X$1750', ifelse(sumar$MARGIN > 1750 & sumar$MARGIN < 2000, '$1750<X$2000','$2000<X')))))), 
+      flg = as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', ifelse(sumar$MARGIN > 1500 & sumar$MARGIN < 1750, '$1500<X$1750', ifelse(sumar$MARGIN > 1750 & sumar$MARGIN < 2000, '$1750<X<$2000', ifelse(sumar$MARGIN > 2000 & sumar$MARGIN < 2500, '$2000<X<$2500','$2500<X'))))))), 
       dollarDif = c(0,diff(MARGIN, lag = 1))) %>% 
       arrange(as.factor(PERIOD)) %>% filter(!is.na(MARGIN))
     sql <- NULL
@@ -89,7 +90,9 @@ for (tbl in tbls){
           ifelse((mnthtot < 1000 & mnthtot > 0),"0<X<1000",
           ifelse((mnthtot > 1000 & mnthtot < 1500), "1000<X<1500",
           ifelse((mnthtot > 1500 & mnthtot < 1750), "1500<X<1750",
-          ifelse((mnthtot < 2000 & mnthtot > 1750), "1750<X<2000", "2000<X")))))),
+          ifelse((mnthtot < 2000 & mnthtot > 1750), "1750<X<2000",
+          ifelse((mnthtot > 2000 & mnthtot < 2500), '2000<X<2500',
+                 "2500<X"))))))),
         month = as.factor(substring(PERIOD,5,7)),
         row_num = as.numeric(rownames(decay)),
         opmarg = as.numeric((mnthtot/INCOME) * 100),
@@ -297,6 +300,11 @@ plot <- ggplot(sumar) + geom_point(aes(x = OP_MARGIN, y = MARGIN, color = flg), 
 plot
 
 sumar[1:6]
+
+#heatmap calendar for transactions 
+#want to add week number of the month in place of the `day` in `aes()`
+#decay$week <- as.numeric(format(as.Date(decay$date),"%W"))
+#ggplot(decay, aes(day, weekday, fill = DEBIT)) + geom_tile(colour = "white") + facet_grid(YEAR~month) + scale_fill_gradient(low="red", high="yellow")
 ```
 
 ```{r cur_prd_var}
