@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "November 12, 2017"
+date: "December 10, 2017"
 output:
   html_document:
     keep_md: True
@@ -50,9 +50,9 @@ for (tbl in tbls){
     print (sql)
     sumar <- dbGetQuery(con, sql)
     sumar <- sumar %>% mutate(
-      flg = as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', ifelse(sumar$MARGIN > 1500 & sumar$MARGIN < 2000, '$1500<X$2000', '$2000<X'))))), 
+      flg = as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', ifelse(sumar$MARGIN > 1500 & sumar$MARGIN < 1750, '$1500<X$1750', ifelse(sumar$MARGIN > 1750 & sumar$MARGIN < 2000, '$1750<X$2000','$2000<X')))))), 
       dollarDif = c(0,diff(MARGIN, lag = 1))) %>% 
-      arrange(as.factor(PERIOD))
+      arrange(as.factor(PERIOD)) %>% filter(!is.na(MARGIN))
     sql <- NULL
   }
   
@@ -88,11 +88,12 @@ for (tbl in tbls){
           ifelse(mnthtot < 0, "X<0", 
           ifelse((mnthtot < 1000 & mnthtot > 0),"0<X<1000",
           ifelse((mnthtot > 1000 & mnthtot < 1500), "1000<X<1500",
-          ifelse((mnthtot < 2000 & mnthtot > 1500), "1500<X<2000", "2000<X"))))),
+          ifelse((mnthtot > 1500 & mnthtot < 1750), "1500<X<1750",
+          ifelse((mnthtot < 2000 & mnthtot > 1750), "1750<X<2000", "2000<X")))))),
         month = as.factor(substring(PERIOD,5,7)),
         row_num = as.numeric(rownames(decay)),
-        opmarg = as.numeric((mnthtot/INCOME) * 100)
-      ) %>%
+        opmarg = as.numeric((mnthtot/INCOME) * 100),
+        opmargDIFF = abs(c(NA, ifelse(diff(prd_flg) == 0, diff(opmarg, lag = 1), 0)))) %>%
       group_by(DAY) %>%
       mutate(
         avg_diff = mean(DIFF), 
@@ -482,11 +483,16 @@ rm(order)
 ```
 
 ```{r margin_plot_trend}
-plot <- ggplot(decay, aes(x = PERIOD, y = opmarg, colour = PERIOD)) + xlab("Period") + ylab("Operating Margin Decay") + ggtitle("Daily Margin Decay Time Series") + geom_boxplot() + scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+plot <- ggplot(decay, aes(x = PERIOD, y = opmarg, colour = month)) + xlab("Period") + ylab("Operating Margin Decay") + ggtitle("Daily Margin Decay Time Series") + geom_boxplot() + scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ggplotly(plot)
+
+plot <- ggplot(decay, aes(x = PERIOD, y = opmarg, colour = YEAR)) + xlab("Year") + ylab("Operating Margin Decay") + ggtitle("Daily Margin Decay Time Series") + geom_boxplot() + scale_y_continuous(breaks = scales::pretty_breaks(n = 10)) + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ggplotly(plot)
 ```
 
 ```{r slope_coefficient_by_PERIOD}
+decay <- decay %>% na.omit()
+
 for (prdRec in unique(decay$PERIOD)){
   # if the merged dataset doesn't exist, create it
   if (!exists("slopeCoef")){
@@ -545,6 +551,8 @@ rm(plot)
 
 ```{r margin_plot_by_month}
 ggplot(decay, aes(x = DAY, y = opmarg, colour = month)) + xlab("Day") + ylab("Operating Margin") + ggtitle("Daily Margin Decay by Month") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + facet_grid(~YEAR)
+
+ggplotly(ggplot(decay, aes(x = DAY, y = opmargDIFF, colour = month)) + xlab("Day") + ylab("Operating Margin First Difference") + ggtitle("First Difference of Daily Margin Decay by Month") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + facet_grid(~YEAR))
 
 ggplot(decay, aes(x = DAY, y = mnthtot, colour = month)) + xlab("Day") + ylab("Dollar Margin") + ggtitle("Daily Margin Decay by Month") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + facet_grid(~YEAR)
 
