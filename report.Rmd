@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "December 11, 2017"
+date: "December 15, 2017"
 output:
   html_document:
     keep_md: True
@@ -300,11 +300,6 @@ plot <- ggplot(sumar) + geom_point(aes(x = OP_MARGIN, y = MARGIN, color = flg), 
 plot
 
 sumar[1:6]
-
-#heatmap calendar for transactions 
-#want to add week number of the month in place of the `day` in `aes()`
-#decay$week <- as.numeric(format(as.Date(decay$date),"%W"))
-#ggplot(decay, aes(day, weekday, fill = DEBIT)) + geom_tile(colour = "white") + facet_grid(YEAR~month) + scale_fill_gradient(low="red", high="yellow")
 ```
 
 ```{r cur_prd_var}
