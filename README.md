@@ -10,7 +10,7 @@ As a data scientist and financial analyst, I am always unsatistified with the le
 
 
 # To-Do List
-* Create script using Plaid to automatically pull data and input to MySQL database
+* Create script using [Plaid](https://plaid.com/) to automatically pull data and input to MySQL database 
 * Upload some dummy data for testing
 * Build predictive modeling into the script for Purchase Volume and Margin values
   * Random Forest
