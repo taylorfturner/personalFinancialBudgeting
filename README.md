@@ -15,3 +15,4 @@ As a data scientist and financial analyst, I am always unsatistified with the le
   * Neural Network (RNN / LSTM)
   * Regression
   * ARIMA
+* Make more of UI based interaction to update budget values
