@@ -1,7 +1,7 @@
 As a data scientist and financial analyst, I am always unsatistified with the level of optionality and customizability in pre-built budgeting softwares: so I created my own.
 
 
-![alt text](https://github.com/taylorturneriv/personalFinancialBudgeting/image.png)
+![alt text](https://github.com/taylorturneriv/personalFinancialBudgeting/blob/master/image.png)
 
 # Getting Started
 * I am running R version 3.4.1
