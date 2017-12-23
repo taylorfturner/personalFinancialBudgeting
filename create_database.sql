@@ -26,7 +26,16 @@ CREATE TABLE `BUDGET` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 
-#need to add the create syntax for the func_inc_var_session() function
+delimiter // 
+CREATE FUNCTION `func_inc_var_session`() RETURNS int
+    NO SQL
+    NOT DETERMINISTIC
+     begin
+      SET @var := @var + 1;
+      return @var;
+     end
+     // 
+delimiter ;
 
 
 CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `r_trans`
