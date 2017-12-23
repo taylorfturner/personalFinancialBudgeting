@@ -1,5 +1,8 @@
 As a data scientist and financial analyst, I am always unsatistified with the level of optionality and customizability in pre-built budgeting softwares: so I created my own.
 
+
+![alt text](https://github.com/taylorturneriv/personalFinancialBudgeting/image.png)
+
 # Getting Started
 * I am running R version 3.4.1
 * Run the create_database.sql file on your computer and that will create the entire database  - views and tables.
