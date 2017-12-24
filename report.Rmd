@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "December 23, 2017"
+date: "December 24, 2017"
 output:
   html_document:
     keep_md: True
@@ -125,7 +125,7 @@ for (tbl in tbls){
   
   if(tbl == "R_CUR_BALANCE"){
     sql <- paste0("SELECT PERIOD, TRID, BALANCE, MONTH_DEBIT FROM ", tbl)
-    
+
     curBalance <- dbGetQuery(con, sql)
   }
 
@@ -165,12 +165,14 @@ for (tbl in tbls){
     
     summary_view <- dbGetQuery(con, sql)
     
+    summary_view <- summary_view %>% group_by(TRID, TRID_CODE) %>% arrange(PERIOD) %>% mutate(cumsumVar = cumsum(VAR))
+    
     cat_bal <- setnames(data.frame(summary_view$PERIOD, summary_view$TRID, summary_view$VAR), c("PERIOD", "TRID", "VAR")) %>% 
       group_by(TRID) %>% 
       mutate(bal_sum = sum(VAR)) %>% 
       unique()
     
-    rm(summary_view)
+    #rm(summary_view)
 
     
     sql <- NULL
@@ -301,6 +303,7 @@ plot
 sumar[1:6]
 ```
 
+
 ```{r cur_prd_var}
 cur_prd_var
 curBalance
@@ -314,6 +317,14 @@ median(sumar$OP_MARGIN) #median
 
 ggplotly(ggplot() + geom_histogram(data =  sumar, aes(x = OP_MARGIN), binwidth = 5) + scale_x_continuous(breaks = scales::pretty_breaks(n = 10)))
 ```
+
+```{r cumulative balance}
+tmp <- summary_view %>% group_by(PERIOD, TRID) %>% summarise(sum = sum(cumsumVar))
+tmp$negPosFlg <- ifelse(tmp$sum < 0, 0, 1)
+ggplot() + geom_point(data = tmp, aes(x = PERIOD, y = sum, color = as.factor(negPosFlg))) + facet_wrap(~TRID) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Cumulative Time Series Sum of Balance by TRID")
+rm(tmp)
+```
+
 
 ```{r percentOfMarginDriver}
 pcntDriver <- hist %>% 
