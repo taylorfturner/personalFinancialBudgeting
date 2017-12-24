@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "December 24, 2017"
+date: "December 25, 2017"
 output:
   html_document:
     keep_md: True
@@ -318,10 +318,17 @@ median(sumar$OP_MARGIN) #median
 ggplotly(ggplot() + geom_histogram(data =  sumar, aes(x = OP_MARGIN), binwidth = 5) + scale_x_continuous(breaks = scales::pretty_breaks(n = 10)))
 ```
 
+#Cumulative Balance
 ```{r cumulative balance}
-tmp <- summary_view %>% group_by(PERIOD, TRID) %>% summarise(sum = sum(cumsumVar))
+tmp <- summary_view %>% group_by(PERIOD, TRID, TRID_CODE) %>% summarise(sum = sum(cumsumVar))
 tmp$negPosFlg <- ifelse(tmp$sum < 0, 0, 1)
-ggplot() + geom_point(data = tmp, aes(x = PERIOD, y = sum, color = as.factor(negPosFlg))) + facet_wrap(~TRID) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Cumulative Time Series Sum of Balance by TRID")
+
+for (uniqueTRID in unique(tmp$TRID)){
+  tridTmp <- tmp %>% filter(TRID == uniqueTRID)
+  plot <- ggplot() + geom_point(data = tridTmp, show.legend = c(color = FALSE), aes(x = PERIOD, y = sum, color = TRID_CODE, shape = as.factor(negPosFlg))) + facet_wrap(~TRID) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Cumulative Time Series Sum of Balance by TRID")
+  print (plot)
+}
+
 rm(tmp)
 ```
 
