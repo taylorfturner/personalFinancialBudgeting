@@ -325,7 +325,7 @@ tmp$negPosFlg <- ifelse(tmp$sum < 0, 0, 1)
 
 for (uniqueTRID in unique(tmp$TRID)){
   tridTmp <- tmp %>% filter(TRID == uniqueTRID)
-  plot <- ggplot() + geom_point(data = tridTmp, show.legend = c(color = FALSE), aes(x = PERIOD, y = sum, color = TRID_CODE, shape = as.factor(negPosFlg))) + facet_wrap(~TRID) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Cumulative Time Series Sum of Balance by TRID")
+  plot <- ggplot() + geom_point(data = tridTmp, aes(x = PERIOD, y = sum, color = TRID_CODE, shape = as.factor(negPosFlg))) + facet_wrap(~TRID) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + ggtitle("Cumulative Time Series Sum of Balance by TRID")
   print (plot)
 }
 
