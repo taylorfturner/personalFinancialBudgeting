@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "December 25, 2017"
+date: "January 1, 2018"
 output:
   html_document:
     keep_md: True
@@ -18,6 +18,8 @@ library(plotly)
 library(ggExtra)
 library(chron)
 library(RMySQL)
+library(cluster)
+library(caTools)
 
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -298,7 +300,6 @@ plot
 
 plot <- ggplot(sumar) + geom_point(aes(x = OP_MARGIN, y = MARGIN, color = flg), stat = "identity") + scale_y_continuous(breaks = scales::pretty_breaks(n = 15)) + ylab("Dollar Margin") + xlab("Operating Margin") + ggtitle("Dollar Margin vs. Percent Operating Margin") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-plot
 
 sumar[1:6]
 ```
@@ -486,6 +487,18 @@ ggplot(tmptridDecay, aes(x = DAY, y = mnthtot, color = marg_flg)) + xlab("Day") 
 
 tmptridDecay <- tridDecay[tridDecay$TRID == "PRTRID",]
 ggplot(tmptridDecay, aes(x = DAY, y = mnthtot, color = marg_flg)) + xlab("Day") + ylab("Margin Decay") + geom_area() + ggtitle("Margin Decay Wrap by Period for Personal") + facet_wrap(~PERIOD)
+```
+
+```{r}
+sumar <- sumar %>% 
+  mutate(
+    monthNum = substr(PERIOD, 5,6)
+  ) %>% 
+  arrange(monthNum)
+
+ggplot() + geom_boxplot(data = sumar, aes(x = monthNum, y = MARGIN, color = monthNum)) + ggtitle("Dollar Margin by Month") + xlab("Month Number") + ylab("Dollar Margin")
+
+ggplot() + geom_boxplot(data = sumar, aes(x = monthNum, y = OP_MARGIN, color = monthNum)) + ggtitle("Operating Margin by Month") + xlab("Month Number") + ylab("Operating Margin")
 ```
 
 ```{r margin_order}
