@@ -492,9 +492,11 @@ ggplot(tmptridDecay, aes(x = DAY, y = mnthtot, color = marg_flg)) + xlab("Day") 
 ```{r}
 sumar <- sumar %>% 
   mutate(
-    monthNum = substr(PERIOD, 5,6)
+    monthNum = substr(PERIOD, 5,6),
+    year = substr(PERIOD, 1,4)
   ) %>% 
-  arrange(monthNum)
+  arrange(monthNum) %>% 
+  filter(year <= year(Sys.time()))
 
 ggplot() + geom_boxplot(data = sumar, aes(x = monthNum, y = MARGIN, color = monthNum)) + ggtitle("Dollar Margin by Month") + xlab("Month Number") + ylab("Dollar Margin")
 
