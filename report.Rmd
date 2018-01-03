@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "January 1, 2018"
+date: "January 3, 2018"
 output:
   html_document:
     keep_md: True
@@ -276,6 +276,61 @@ stdevcatmarg <- catmarg %>%
   ) %>%
   unique()
 
+
+maxDayByPeriod <- hist %>% 
+  group_by(PERIOD = as.factor(PERIOD)) %>% 
+  summarise(maxDay = max(dynm))
+
+
+food <- budget %>% 
+  filter(TRID == 'FTRID')
+food <- merge(food, maxDayByPeriod, by = "PERIOD", all = FALSE)
+
+food <- food %>%
+  mutate(PERIOD = as.factor(PERIOD)) %>% 
+  group_by(PERIOD) %>% 
+  mutate(perDiem = (CREDIT / maxDay))
+
+
+rm(dayNumSeqAll)
+dayNumSeqAll <- c()
+for (dayNum in unique(food$PERIOD)){
+  maxDay <- food[food$PERIOD == dayNum,]$maxDay
+  dayNumSeqAll <- append(dayNumSeqAll, rep(dayNum, maxDay), after = length(dayNumSeqAll))
+}
+
+daySeq <- as.data.frame(dayNumSeqAll)
+rm(dayNumSeqAll)
+    
+daySeq <- daySeq %>% 
+  mutate(PERIOD = dayNumSeqAll) %>% 
+  select(-dayNumSeqAll)
+
+food <- merge(daySeq, food, by = 'PERIOD', all = TRUE)
+rm(maxDayByPeriod, daySeq)
+
+foodTrans <- hist %>%
+  filter(TRID == 'FTRID') %>%
+  select(PERIOD, dynm, debit) %>%
+  mutate(
+    PERIOD = as.factor(PERIOD),
+    dynm = as.factor(dynm)
+  ) %>%
+  group_by(PERIOD, dynm) %>%
+  summarise(sumTrans = sum(as.numeric(debit)))
+foodTrans <- as.data.frame(foodTrans)
+
+
+secondfinalFood <- food %>% 
+  select(-TRID, -maxDay) %>% 
+  as.data.frame()
+
+secondfinalFood <- as.data.frame(secondfinalFood)
+
+food <- merge(foodTrans, secondfinalFood, by = 'PERIOD', all = TRUE) %>% 
+  unique() %>% 
+  filter(PERIOD == paste0(year(Sys.time()), ifelse(length(month(Sys.time())) == 1, paste0(0,month(Sys.time())), month(Sys.time()))))
+
 rm(catmarg)
 ```
 
@@ -300,6 +355,9 @@ plot
 
 plot <- ggplot(sumar) + geom_point(aes(x = OP_MARGIN, y = MARGIN, color = flg), stat = "identity") + scale_y_continuous(breaks = scales::pretty_breaks(n = 15)) + ylab("Dollar Margin") + xlab("Operating Margin") + ggtitle("Dollar Margin vs. Percent Operating Margin") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
+plot <- ggplot() + geom_point(data = food, aes(x = dynm, y = perDiem, color = c("budget"))) + geom_point(data = food, aes(x = dynm, y = (sumTrans * -1), color = c("trans"))) + ggtitle("Daily Food Margin") + xlab("Day Number") + ylab("Daily Spend")
+
+plot
 
 sumar[1:6]
 ```
