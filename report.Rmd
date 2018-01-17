@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "January 3, 2018"
+date: "January 18, 2018"
 output:
   html_document:
     keep_md: True
@@ -644,6 +644,13 @@ rm(plot)
 
 ```{r margin_plot_by_month}
 ggplot(decay, aes(x = DAY, y = opmarg, colour = month)) + xlab("Day") + ylab("Operating Margin") + ggtitle("Daily Margin Decay by Month") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + facet_grid(~YEAR)
+
+
+tmp <- decay %>% filter(month == paste0(ifelse(length(month(Sys.time())) == 1, paste0(0,month(Sys.time())))))
+ggplotly(ggplot(tmp, aes(x = DAY, y = opmarg, colour = month)) + xlab("Day") + ylab("Operating Margin") + ggtitle("Daily Operating Margin Decay by Month YOY") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + facet_grid(~YEAR))
+
+ggplotly(ggplot(tmp, aes(x = DAY, y = mnthtot, colour = month)) + xlab("Day") + ylab("Operating Margin") + ggtitle("Daily Margin Decay by Month YOY") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + facet_grid(~YEAR))
+rm(tmp)
 
 ggplotly(ggplot(decay, aes(x = DAY, y = opmargDIFF, colour = month)) + xlab("Day") + ylab("Operating Margin First Difference") + ggtitle("First Difference of Daily Margin Decay by Month") + geom_point() + scale_y_continuous(breaks = scales::pretty_breaks(n = 7)) + theme(axis.text.x = element_text(angle = 90, hjust = 1)) + facet_grid(~YEAR))
 
