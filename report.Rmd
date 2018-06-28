@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "January 18, 2018"
+date: "June 29, 2018"
 output:
   html_document:
     keep_md: True
@@ -52,12 +52,21 @@ for (tbl in tbls){
     print (sql)
     sumar <- dbGetQuery(con, sql)
     sumar <- sumar %>% mutate(
-      flg = as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', ifelse(sumar$MARGIN > 1500 & sumar$MARGIN < 1750, '$1500<X$1750', ifelse(sumar$MARGIN > 1750 & sumar$MARGIN < 2000, '$1750<X<$2000', ifelse(sumar$MARGIN > 2000 & sumar$MARGIN < 2500, '$2000<X<$2500','$2500<X'))))))), 
+      flg = as.factor(ifelse(sumar$MARGIN < 0, 'X<$0', 
+              ifelse(sumar$MARGIN > 0 & sumar$MARGIN < 1000, '$0<X<$1000', 
+              ifelse(sumar$MARGIN > 1000 & sumar$MARGIN < 1500,'$1000<X$1500', 
+              ifelse(sumar$MARGIN > 1500 & sumar$MARGIN < 1750, '$1500<X$1750', 
+              ifelse(sumar$MARGIN > 1750 & sumar$MARGIN < 2000, '$1750<X<$2000', 
+              ifelse(sumar$MARGIN > 2000 & sumar$MARGIN < 2500, '$2000<X<$2500',
+              ifelse(sumar$MARGIN > 2500 & sumar$MARGIN < 3000, '$2500<X<$3000',
+              ifelse(sumar$MARGIN > 3000 & sumar$MARGIN < 3500, '$3000<X<$3500',
+              ifelse(sumar$MARGIN > 3500 & sumar$MARGIN < 4000, '$3500<X<$4000',
+                     '$4000<X')))))))))), 
       dollarDif = c(0,diff(MARGIN, lag = 1))) %>% 
       arrange(as.factor(PERIOD)) %>% filter(!is.na(MARGIN))
     sql <- NULL
   }
-  
+
   if(tbl == "R_CAT_MARGIN"){
     sql <- paste0("SELECT PERIOD, TRID, DEBIT, CREDIT, MARGIN FROM ", tbl)
     catmarg <- dbGetQuery(con, sql)
@@ -88,12 +97,15 @@ for (tbl in tbls){
         DIFF = c(NA, ifelse(diff(prd_flg) == 0, diff(mnthtot, lag = 1), 0)),
         marg_flg  = as.factor(
           ifelse(mnthtot < 0, "X<0", 
-          ifelse((mnthtot < 1000 & mnthtot > 0),"0<X<1000",
+          ifelse((mnthtot > 0 & mnthtot < 1000),"0<X<1000",
           ifelse((mnthtot > 1000 & mnthtot < 1500), "1000<X<1500",
           ifelse((mnthtot > 1500 & mnthtot < 1750), "1500<X<1750",
-          ifelse((mnthtot < 2000 & mnthtot > 1750), "1750<X<2000",
+          ifelse((mnthtot > 1750 & mnthtot < 2000), "1750<X<2000",
           ifelse((mnthtot > 2000 & mnthtot < 2500), '2000<X<2500',
-                 "2500<X"))))))),
+          ifelse((mnthtot > 2500 & mnthtot < 3000), '2500<X<3000',
+          ifelse((mnthtot > 3000 & mnthtot < 3500), '3000<X<3500',
+          ifelse((mnthtot > 3500 & mnthtot < 4000), '3500<X4000',
+                 "4000<X")))))))))),
         month = as.factor(substring(PERIOD,5,7)),
         row_num = as.numeric(rownames(decay)),
         opmarg = as.numeric((mnthtot/INCOME) * 100),
@@ -130,7 +142,7 @@ for (tbl in tbls){
 
     curBalance <- dbGetQuery(con, sql)
   }
-
+  
   if(tbl == "R_MARGIN_TRIDDECAY"){
     sql <- paste0("SELECT YEAR, PERIOD, PERIODKEY, DAY, TRID, DEBIT, INCOME FROM ", tbl)
     
@@ -512,7 +524,7 @@ rm(tmp)
 ```{r saving_projection}
 ggplotly(ggplot(savingsRate) + geom_point(aes(x = PERIOD, y = savingrate), stat = "identity") + xlab("Period") + ylab("Savings Rate") + ggtitle("Actual Savings Rate by Period") + scale_y_continuous(breaks = seq(-.50,.90, by = .05)) + theme(legend.position="none") + theme(axis.text.x = element_text(angle = 90, hjust = 1)))
 
-savingsRate[20:38,]
+savingsRate[40:52,]
 
 ggplotly(ggplot(savingsRate, aes(x = PERIOD, y = runbal)) + geom_bar(stat = "identity") + ggtitle("Actual Cumulative Savings") + theme(axis.text.x = element_text(angle = 90, hjust = 1)))
 
