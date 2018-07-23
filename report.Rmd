@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "June 29, 2018"
+date: "July 24, 2018"
 output:
   html_document:
     keep_md: True
@@ -37,6 +37,16 @@ killallDBConns <- function(){
   print("All connecitons killed!")
 }
 
+
+numberOfDays <- function(date) {
+    m <- format(date, format="%m")
+
+    while (format(date, format="%m") == m) {
+        date <- date + 1
+    }
+
+    return(as.integer(format(date - 1, format="%d")))
+}
 
 #mysql connection
 con <- dbConnect(RMySQL::MySQL(), host = "localhost",user = "root", password = "password", dbname = "fitz_cap")
@@ -289,9 +299,10 @@ stdevcatmarg <- catmarg %>%
   unique()
 
 
-maxDayByPeriod <- hist %>% 
-  group_by(PERIOD = as.factor(PERIOD)) %>% 
-  summarise(maxDay = max(dynm))
+maxDayByPeriod <- data.frame(PERIOD = seq(as.Date("2015-01-01"),length=1000,by="months")-1)
+maxDayByPeriod$maxDay <- days_in_month(maxDayByPeriod$PERIOD)
+maxDayByPeriod$PERIOD <- format(maxDayByPeriod$PERIOD, format = '%Y%m')
+
 
 
 food <- budget %>% 
@@ -341,7 +352,8 @@ secondfinalFood <- as.data.frame(secondfinalFood)
 
 food <- merge(foodTrans, secondfinalFood, by = 'PERIOD', all = TRUE) %>% 
   unique() %>% 
-  filter(PERIOD == paste0(year(Sys.time()), ifelse(length(month(Sys.time())) == 1, paste0(0,month(Sys.time())), month(Sys.time()))))
+  filter(PERIOD == paste0(year(Sys.time()), ifelse(length(month(Sys.time())) == 1, paste0(0,month(Sys.time())), month(Sys.time())))) %>% 
+  mutate(cumPerDiem = cumsum(perDiem), cumTrans = cumsum(sumTrans))
 
 rm(catmarg)
 ```
@@ -367,7 +379,7 @@ plot
 
 plot <- ggplot(sumar) + geom_point(aes(x = OP_MARGIN, y = MARGIN, color = flg), stat = "identity") + scale_y_continuous(breaks = scales::pretty_breaks(n = 15)) + ylab("Dollar Margin") + xlab("Operating Margin") + ggtitle("Dollar Margin vs. Percent Operating Margin") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-plot <- ggplot() + geom_point(data = food, aes(x = dynm, y = perDiem, color = c("budget"))) + geom_point(data = food, aes(x = dynm, y = (sumTrans * -1), color = c("trans"))) + ggtitle("Daily Food Margin") + xlab("Day Number") + ylab("Daily Spend")
+plot <- ggplot() + geom_point(data = food, aes(x = dynm, y = cumPerDiem, color = c("budget"))) + geom_point(data = food, aes(x = dynm, y = (cumTrans * -1), color = c("trans"))) + geom_hline(yintercept = as.numeric(cur_prd_var %>% filter(TRID == 'FTRID') %>% select(CREDIT))) + ggtitle("Daily Food Margin") + xlab("Day Number") + ylab("Cumulative Daily Spend v. Daily Budget")
 
 plot
 
