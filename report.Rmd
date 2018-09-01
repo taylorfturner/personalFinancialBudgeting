@@ -1,7 +1,7 @@
 ---
 title: "Budget Summary"
 author: "Taylor Turner"
-date: "July 24, 2018"
+date: "September 1, 2018"
 output:
   html_document:
     keep_md: True
@@ -281,7 +281,8 @@ pos <- setnames(data.frame(catmarg$TRID, catmarg$MARGIN), c("TRID", "MARGIN")) %
   unique()
 
 
-net <- setnames(merge(pos, neg, by = "TRID", all = T), c("TRID", "posCount", "posMargin", "negCount", "negMargin")) %>% 
+
+net <- setnames(merge(pos, neg, by = "TRID", all = TRUE), c("TRID", "posCount", "posMargin", "negCount", "negMargin")) %>% 
   group_by(TRID) %>% 
   mutate(
     netCount = posCount - negCount, 
@@ -289,7 +290,6 @@ net <- setnames(merge(pos, neg, by = "TRID", all = T), c("TRID", "posCount", "po
     negPcnt = negCount / (posCount + negCount),
     netMargin = posMargin + negMargin
   )
-
 
 stdevcatmarg <- catmarg %>% 
   group_by(TRID) %>% 
@@ -323,14 +323,13 @@ for (dayNum in unique(food$PERIOD)){
 }
 
 daySeq <- as.data.frame(dayNumSeqAll)
-rm(dayNumSeqAll)
     
 daySeq <- daySeq %>% 
   mutate(PERIOD = dayNumSeqAll) %>% 
   select(-dayNumSeqAll)
 
 food <- merge(daySeq, food, by = 'PERIOD', all = TRUE)
-rm(maxDayByPeriod, daySeq)
+
 
 foodTrans <- hist %>%
   filter(TRID == 'FTRID') %>%
@@ -350,10 +349,23 @@ secondfinalFood <- food %>%
 
 secondfinalFood <- as.data.frame(secondfinalFood)
 
-food <- merge(foodTrans, secondfinalFood, by = 'PERIOD', all = TRUE) %>% 
+food <- foodTrans %>% 
+  filter(PERIOD == paste0(year(Sys.time()), ifelse(length(month(Sys.time())) == 1, paste0(0,month(Sys.time())), month(Sys.time()))))
+
+curPeriodDaySeq <- maxDayByPeriod %>% filter(PERIOD == unique(food$PERIOD))
+
+curPeriodDaySeq <- expand.grid(PERIOD = curPeriodDaySeq$PERIOD, dynm = seq(1, curPeriodDaySeq$maxDay))
+
+curPeriodDaySeq[is.na(curPeriodDaySeq)] <- 0
+
+food <- merge(curPeriodDaySeq, food, by = c('PERIOD', 'dynm'), all = TRUE)
+
+food[is.na(food)] <- 0
+
+food <- merge(food, secondfinalFood, by = 'PERIOD', all = TRUE) %>% 
   unique() %>% 
-  filter(PERIOD == paste0(year(Sys.time()), ifelse(length(month(Sys.time())) == 1, paste0(0,month(Sys.time())), month(Sys.time())))) %>% 
-  mutate(cumPerDiem = cumsum(perDiem), cumTrans = cumsum(sumTrans))
+  mutate(cumPerDiem = cumsum(perDiem), cumTrans = cumsum(sumTrans)) %>% 
+  filter(PERIOD == paste0(year(Sys.time()), ifelse(length(month(Sys.time())) == 1, paste0(0,month(Sys.time())), month(Sys.time()))))
 
 rm(catmarg)
 ```
@@ -535,6 +547,9 @@ rm(tmp)
 #Savings Analysis
 ```{r saving_projection}
 ggplotly(ggplot(savingsRate) + geom_point(aes(x = PERIOD, y = savingrate), stat = "identity") + xlab("Period") + ylab("Savings Rate") + ggtitle("Actual Savings Rate by Period") + scale_y_continuous(breaks = seq(-.50,.90, by = .05)) + theme(legend.position="none") + theme(axis.text.x = element_text(angle = 90, hjust = 1)))
+
+
+ggplotly(ggplot(savingsRate) + geom_point(aes(x = PERIOD, y = CREDIT), stat = "identity") + xlab("Period") + ylab("Savings Amount") + ggtitle("Actual Savings by Period") + scale_y_continuous(breaks = seq(0,100000, by = 1000)) + theme(legend.position="none") + theme(axis.text.x = element_text(angle = 90, hjust = 1)))
 
 savingsRate[40:52,]
 
